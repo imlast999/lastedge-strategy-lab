@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Environment & Secrets
+.env
+
+# Data & Databases
+data/*.db
+data/*.db-wal
+data/*.db-shm
+research.db
+research.db-wal
+research.db-shm
+data/historical/*.csv
+data/historical/*.parquet
+
+# Logs
+logs/
+*.log

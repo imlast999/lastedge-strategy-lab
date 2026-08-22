@@ -1,0 +1,6 @@
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+pytest>=7.4.0
+# MetaTrader5 is optional in Strategy Lab — required only if live history download from MT5 is requested
+MetaTrader5>=5.0.45; platform_system == "Windows"
