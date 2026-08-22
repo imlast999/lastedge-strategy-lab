@@ -7,22 +7,29 @@
 
 ## 1. Walk Forward Methodology
 
-Walk Forward Analysis tests whether optimized parameters hold predictive power on subsequent unseen market data.
+Walk Forward Testing divides historical market data into overlapping train/test windows and runs the replay engine sequentially to detect parameter curve-fitting:
 
 ```text
-Full Historical Data
+Historical Data
 ─────────────────────────────────────────────────────────────────────────────►
-Window 1: [   In-Sample Train (70%)   ][ Out-of-Sample Test (30%) ]
-Window 2:       [   In-Sample Train (70%)   ][ Out-of-Sample Test (30%) ]
-Window 3:             [   In-Sample Train (70%)   ][ Out-of-Sample Test (30%) ]
-Window 4:                   [   In-Sample Train (70%)   ][ Out-of-Sample Test (30%) ]
+Window 1: [   TRAIN (4,320 bars ~ 6m)   ][ TEST (720 bars ~ 1m) ]
+Window 2:         [   TRAIN (4,320 bars ~ 6m)   ][ TEST (720 bars ~ 1m) ]
+Window 3:                 [   TRAIN (4,320 bars ~ 6m)   ][ TEST (720 bars ~ 1m) ]
 ```
 
 ---
 
-## 2. Walk Forward Efficiency Score (WES)
+## 2. Window Configuration & Constants
 
-$$\text{WES} = \frac{\text{Annualized Return (Out-of-Sample Concatenated)}}{\text{Annualized Return (In-Sample Average)}}$$
+- **`DEFAULT_TRAIN_BARS`**: 4,320 bars (~6 months of H1 data).
+- **`DEFAULT_TEST_BARS`**: 720 bars (~1 month of H1 data).
+- **`DEFAULT_STEP_BARS`**: 720 bars (advances 1 month per iteration).
 
-- **$\text{WES} \ge 0.60$**: **Pass**. Robust strategy with real out-of-sample edge.
-- **$\text{WES} < 0.50$**: **Fail**. Indicative of severe parameter curve-fitting.
+---
+
+## 3. Walk Forward Efficiency Score (WES)
+
+$$\text{WES} = \frac{\text{Test Net Pips}}{\text{Train Net Pips}} \times \frac{\text{Test Win Rate}}{\text{Train Win Rate}}$$
+
+- **$\text{WES} \ge 0.60$**: **Pass**. Robust strategy with verified out-of-sample edge.
+- **$\text{WES} < 0.50$**: **Fail**. Indicative of parameter overfitting.

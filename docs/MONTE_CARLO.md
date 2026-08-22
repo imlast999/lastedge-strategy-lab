@@ -7,12 +7,13 @@
 
 ## 1. Simulation Methodology
 
-The Monte Carlo engine tests sequence risk by randomly reshuffling trade return series 1,000 to 5,000 times (with replacement / bootstrap sampling).
+The Monte Carlo engine tests sequence and order risk by randomly reshuffling trade return records (bootstrap without replacement by default, or with replacement optionally) across $N = 5{,}000$ iterations (`DEFAULT_N_SIMULATIONS = 5000`).
 
 ---
 
-## 2. Statistical Outputs
+## 2. Statistical Metrics & Outputs
 
-- **Drawdown Distribution**: Calculates 50th, 90th, 95th, and 99th percentile maximum drawdown.
-- **Risk of Ruin**: Probability of equity dropping below a critical threshold (e.g. 20% drawdown) during a 500-trade sequence.
-- **Max Consecutive Losses**: Distribution of worst losing streaks expected over a multi-year horizon.
+- **Drawdown Distribution**: Computes 5th, 25th, 50th (median), 75th, 95th, and 99th percentile maximum drawdowns.
+- **Profit Factor Distribution**: Percentile curves for expected profit factors under random trade ordering.
+- **Risk of Ruin**: Probability that equity drops below the ruin threshold (default: $-30\%$ of initial equity).
+- **Consecutive Loss Streaks**: Expected maximum sequence of consecutive losing trades.
