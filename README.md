@@ -13,6 +13,8 @@
 **LastEdge Strategy Lab** is the scientific and quantitative engine of the LastEdge platform. It empowers quantitative researchers to design, backtest, optimize, stress-test, and promote algorithmic trading strategies using empirical mathematical models.
 
 ### Key Capabilities:
+- **Unified Research Pipeline CLI**: Single-command orchestrator for Backtesting, Exit Research, WFA, Monte Carlo, and Promotion (`run_pipeline.py`).
+- **Historical Data Store**: Offline Parquet & CSV dataset loading and validation (`services/data_loader.py`).
 - **Realistic Backtesting**: Tick and bar simulations modeling spread, commissions, and slippage (`core/trade_costs.py`).
 - **Walk Forward Analysis (WFA)**: Multi-window rolling optimization with out-of-sample stability scoring (`core/walkforward.py`).
 - **Monte Carlo Engine**: Statistical resimulation for maximum drawdown and risk-of-ruin probability at 95% and 99% confidence levels (`core/montecarlo.py`).
@@ -27,7 +29,8 @@
 
 ```text
 LastEdge Strategy Lab/
-├── run_validation.py               # Main research screening pipeline
+├── run_pipeline.py                 # Unified end-to-end research orchestrator CLI
+├── run_validation.py               # Multi-level screening and validation pipeline
 ├── run_long_forward_validation.py  # Multi-year longevity validator
 ├── run_exit_research.py            # Exit strategy optimization runner
 ├── rules_config.json               # Research baseline parameters
@@ -43,8 +46,13 @@ LastEdge Strategy Lab/
 │       ├── variants.py             # Trailing, partial, breakeven exit rules
 │       ├── metrics.py              # Exit efficiency scoring metrics
 │       └── strategy_adapter.py     # Strategy harness for exit experiments
+├── data/
+│   ├── historical/                 # Canonical historical datasets (Parquet/CSV)
+│   ├── candidates/                 # Frozen promoted strategy manifests (.json)
+│   └── research.db                 # SQLite research database
 ├── services/
 │   ├── api_server.py               # REST API server (port 8082)
+│   ├── data_loader.py              # Historical DataLoader & dataset validation
 │   ├── database.py                 # SQLite database manager (research.db)
 │   ├── research_store.py           # Experiment & candidate persistence
 │   ├── promotion.py                # StrategyPromotionService (SHA-256 packaging)
@@ -55,7 +63,7 @@ LastEdge Strategy Lab/
 │   ├── xauusd.py                   # XAUUSD candidate model
 │   ├── btceur_new.py               # BTCEUR candidate model
 │   └── experimental/               # Sandbox experimental prototypes
-├── tests/                          # 25 automated quantitative test suites
+├── tests/                          # 31 automated quantitative test suites
 └── docs/                           # Technical documentation
 ```
 
@@ -65,7 +73,7 @@ LastEdge Strategy Lab/
 
 ### Requirements:
 - Python 3.10+ (Windows, macOS, Linux)
-- `pandas`, `numpy`, `scipy`, `matplotlib`
+- `pandas`, `numpy`, `scipy`, `matplotlib`, `pyarrow`
 
 ### Step 1: Install Dependencies
 ```bash
@@ -81,11 +89,16 @@ Default configuration runs in offline mode without MT5:
 MT5_OFFLINE_MODE=1
 RESEARCH_API_PORT=8082
 RESEARCH_DB_PATH=data/research.db
+HISTORICAL_DATA_DIR=data/historical
 ```
 
-### Step 3: Run Research Validation
+### Step 3: Run Research Pipeline
 ```bash
-python run_validation.py
+# Execute full research pipeline on EURUSD (offline via DataLoader)
+python run_pipeline.py --symbol EURUSD --strategy eurusd_simple --bars 20000
+
+# Execute pipeline and automatically promote candidate to Trading Engine
+python run_pipeline.py --symbol XAUUSD --strategy xauusd_simple --promote
 ```
 To run the REST API server:
 ```bash

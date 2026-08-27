@@ -979,6 +979,18 @@ class ExitResearchRunner:
     # ── Descarga de datos ────────────────────────────────────────────────────
 
     def _download_data(self, total_bars: int) -> Optional[pd.DataFrame]:
+        # 1. Intentar cargar desde DataLoader (dataset offline local)
+        try:
+            from services.data_loader import get_data_loader
+            loader = get_data_loader()
+            df, meta = loader.load(symbol=self.symbol, timeframe="H1", bars=total_bars)
+            if df is not None and len(df) > 0:
+                logger.info(f"[ExitResearch] Cargadas {len(df)} velas desde dataset local ({meta.file_format}, SHA-256: {meta.file_hash_sha256[:8]})")
+                return df.reset_index(drop=True)
+        except Exception as e_local:
+            logger.debug(f"[ExitResearch] Dataset local no disponible para {self.symbol}: {e_local}")
+
+        # 2. Fallback a MT5 si está disponible
         try:
             from services.mt5_client import get_candles, initialize as mt5_init
             import MetaTrader5 as mt5

@@ -118,8 +118,6 @@ class FlexibleScoring:
     
     def evaluate_signal_context(self, context) -> ScoringResult:
         """Evalúa señal usando contexto completo"""
-        from core.engine import SignalContext  # Import local para evitar circular
-        
         symbol = context.symbol
         signal = context.raw_signal
         df = context.dataframe

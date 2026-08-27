@@ -61,6 +61,51 @@ class ReplayStatistics:
     bars_paused: int = 0           # velas totales en pausa por CB
     signals_blocked_by_cb: int = 0 # señales que habrían salido pero el CB las bloqueó
 
+
+@dataclass
+class EngineSignalResult:
+    signal: Optional[Dict] = None
+    should_show: bool = False
+    confidence: str = "MEDIUM"
+    score: float = 70.0
+    rejection_reason: Optional[str] = None
+
+
+class StrategyLabSignalEvaluator:
+    """Evaluador de señales autónomo de Strategy Lab para ReplayEngine y WalkForward."""
+    def __init__(self):
+        self._adapters: Dict[str, Any] = {}
+
+    def reset_replay_state(self, symbol: str):
+        pass
+
+    def evaluate_signal(self, window: pd.DataFrame, symbol: str, strategy: Optional[str] = None,
+                        config: Optional[Dict] = None, skip_duplicate_filter: bool = True,
+                        current_index: int = 0, current_bar_time: Optional[datetime] = None) -> EngineSignalResult:
+        from core.exit_research.strategy_adapter import adapter_for_symbol
+        sym_key = symbol.upper()
+        if sym_key not in self._adapters:
+            try:
+                self._adapters[sym_key] = adapter_for_symbol(sym_key)
+            except Exception:
+                return EngineSignalResult(signal=None, rejection_reason=f"Estrategia para {symbol} no encontrada")
+
+        adapter = self._adapters[sym_key]
+        sig = adapter.get_signal(window)
+        if not sig:
+            return EngineSignalResult(signal=None, rejection_reason="No setup básico detectado")
+
+        return EngineSignalResult(signal=sig, should_show=True, confidence="HIGH", score=80.0)
+
+
+_signal_evaluator_instance: Optional[StrategyLabSignalEvaluator] = None
+
+def get_trading_engine() -> StrategyLabSignalEvaluator:
+    global _signal_evaluator_instance
+    if _signal_evaluator_instance is None:
+        _signal_evaluator_instance = StrategyLabSignalEvaluator()
+    return _signal_evaluator_instance
+
 class ReplayEngine:
     """
     Motor de replay que ejecuta estrategias sobre datos históricos
@@ -111,9 +156,6 @@ class ReplayEngine:
             ReplayStatistics con resultados completos
         """
         import time
-        from services.mt5_client import get_candles, initialize as mt5_initialize
-        import MetaTrader5 as mt5
-        from core.engine import get_trading_engine
         
         start_time = time.time()
         
@@ -153,25 +195,40 @@ class ReplayEngine:
             logger.info(f"Lookback efectivo para {strategy}: {self.lookback_window} (requerida por metadata={required_history})")
             
             # ── Obtener datos históricos ──────────────────────────────────────
+            total_bars_needed = self.lookback_window + bars
             if df_override is not None:
-                # Datos ya proporcionados externamente (walk-forward, etc.)
+                # Datos ya proporcionados externamente (walk-forward, pipeline, etc.)
                 df_full = df_override.reset_index(drop=True)
                 logger.info(f"Usando df_override: {len(df_full)} velas para {symbol}")
             else:
-                # Descargar desde MT5
-                mt5_initialize()
-                total_bars_needed = self.lookback_window + bars
-                logger.info(f"Cargando {total_bars_needed} velas para {symbol}...")
+                # 1. Intentar cargar desde DataLoader (dataset offline local)
+                df_full = None
+                try:
+                    from services.data_loader import get_data_loader
+                    loader = get_data_loader()
+                    df_full, _ = loader.load(symbol=symbol, timeframe=effective_timeframe, bars=total_bars_needed)
+                    logger.info(f"Cargadas {len(df_full)} velas desde dataset local para {symbol}")
+                except Exception as e_local:
+                    logger.debug(f"Dataset local no disponible para {symbol} ({effective_timeframe}): {e_local}")
 
-                tf_map = {
-                    'H1': mt5.TIMEFRAME_H1,
-                    'H4': mt5.TIMEFRAME_H4,
-                    'D1': mt5.TIMEFRAME_D1,
-                    'M15': mt5.TIMEFRAME_M15,
-                    'M5': mt5.TIMEFRAME_M5,
-                }
-                mt5_timeframe = tf_map.get(effective_timeframe.upper(), mt5.TIMEFRAME_H1)
-                df_full = get_candles(symbol, mt5_timeframe, total_bars_needed)
+                # 2. Si no hay dataset local, fallback a MT5 si está disponible
+                if df_full is None:
+                    try:
+                        from services.mt5_client import get_candles, initialize as mt5_initialize
+                        import MetaTrader5 as mt5
+                        mt5_initialize()
+                        logger.info(f"Cargando {total_bars_needed} velas desde MT5 para {symbol}...")
+                        tf_map = {
+                            'H1': mt5.TIMEFRAME_H1,
+                            'H4': mt5.TIMEFRAME_H4,
+                            'D1': mt5.TIMEFRAME_D1,
+                            'M15': mt5.TIMEFRAME_M15,
+                            'M5': mt5.TIMEFRAME_M5,
+                        }
+                        mt5_timeframe = tf_map.get(effective_timeframe.upper(), mt5.TIMEFRAME_H1)
+                        df_full = get_candles(symbol, mt5_timeframe, total_bars_needed)
+                    except Exception as e_mt5:
+                        logger.warning(f"No se pudo obtener datos de MT5 para {symbol}: {e_mt5}")
 
             if df_full is None or len(df_full) < self.lookback_window + 10:
                 logger.error(f"Datos insuficientes para {symbol}: {len(df_full) if df_full is not None else 0} velas")

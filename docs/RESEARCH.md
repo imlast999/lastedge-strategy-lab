@@ -18,32 +18,38 @@ LastEdge follows a rigorous empirical research framework to prevent curve-fittin
   - Implement class inheriting from BaseStrategy in `strategies/experimental/`.
        │
        ▼
-[3. In-Sample Backtest with Full Costs]
+[3. Offline Historical Data Loading]
+  - Load validated Parquet/CSV dataset via `services.data_loader.DataLoader`.
+       │
+       ▼
+[4. In-Sample Backtest with Full Costs]
   - Run backtest modeling spread, commission, and slippage (`core/trade_costs.py`).
   - Calculate Sharpe (> 1.2), Profit Factor (> 1.4), Max Drawdown (< 15%).
        │
        ▼
-[4. Walk Forward Analysis (WFA)]
+[5. Walk Forward Analysis (WFA)]
   - Evaluate parameter stability across rolling out-of-sample windows (`core/walkforward.py`).
   - Target WFA Efficiency Score (WES) >= 0.60.
        │
        ▼
-[5. Monte Carlo Stress Testing]
-  - Run 1,000 reshuffled paths (`core/montecarlo.py`).
+[6. Monte Carlo Stress Testing]
+  - Run 5,000 reshuffled bootstrap paths (`core/montecarlo.py`).
   - Verify max drawdown at 99% confidence interval is within risk limits.
        │
        ▼
-[6. Exit Research Optimization]
+[7. Exit Research Optimization]
   - Test exit variants (Trailing, Partial, Breakeven) using `core/exit_research/`.
        │
        ▼
-[7. Candidate Registration]
+[8. Candidate Registration & Promotion]
   - Freeze configuration parameters and save record in `data/candidates/*.json`.
   - Calculate `config_hash` and `code_sha256`.
-       │
-       ▼
-[8. Promotion Approval & Export]
   - Export verified `.py` file to `Trading Engine/strategies/` for production.
+
+All these stages can be executed seamlessly via the unified CLI:
+```bash
+python run_pipeline.py --symbol EURUSD --strategy eurusd_simple --bars 20000 --promote
+```
 ```
 
 ---

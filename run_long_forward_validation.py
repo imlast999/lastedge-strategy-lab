@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 import json
-from services.bot_service import get_bot_service
+from services.long_forward_validation import get_long_forward_validation_service
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
     print("⏱️ LastEdge — Long Forward Validation & Longevity Engine (P5.3)")
     print("=" * 75)
 
-    bot_svc = get_bot_service()
+    svc = get_long_forward_validation_service()
 
     profile = "24h"
     if "--72h" in sys.argv:
@@ -25,7 +25,7 @@ def main():
         profile = "7d"
 
     if "--list" in sys.argv:
-        sessions = bot_svc.list_long_forward_sessions()
+        sessions = svc.list_sessions()
         print("\n📜 HISTORIAL DE SESIONES DE VALIDACIÓN (PERSISTIDAS EN BD):")
         print("-" * 75)
         if not sessions:
@@ -40,7 +40,7 @@ def main():
         try:
             idx = sys.argv.index("--session")
             session_id = sys.argv[idx + 1]
-            details = bot_svc.get_long_forward_session(session_id)
+            details = svc.get_session(session_id)
             print(f"\n🔍 DETALLES DE SESIÓN [{session_id}]:")
             print(json.dumps(details, indent=2))
             sys.exit(0)
@@ -49,18 +49,19 @@ def main():
             sys.exit(1)
 
     if "--start" in sys.argv:
-        res = bot_svc.start_long_forward_session(profile=profile)
-        print(f"\n🚀 {res.get('message', 'Sesión iniciada')}")
+        res = svc.start_session(profile=profile)
+        msg = res.get('message') or f"Sesión {res.get('session_id')} iniciada"
+        print(f"\n🚀 {msg}")
         sys.exit(0)
 
     if "--stop" in sys.argv:
-        res = bot_svc.stop_long_forward_session()
+        res = svc.stop_session()
         print("\n🛑 Sesión de validación finalizada.")
-        print(json.dumps(res.get("report", {}), indent=2))
+        print(json.dumps(res, indent=2))
         sys.exit(0)
 
     # Estado por defecto
-    report = bot_svc.get_long_forward_status()
+    report = svc.get_validation_report()
     verdict = report.get("verdict", "STABLE")
     icon = "✅ STABLE" if verdict == "STABLE" else ("⚠️ DEGRADED" if verdict == "DEGRADED" else "❌ UNSTABLE")
     mem = report.get("memory_telemetry", {})

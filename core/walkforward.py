@@ -178,32 +178,25 @@ class WalkForwardTester:
         self.cb_pause   = cb_pause
         self.lookback   = lookback
 
-    def run(
-        self,
-        symbol:   str,
-        strategy: str,
-        total_bars: int = 10000,
-        timeframe:  str = 'H1',
-        config:     Dict = None,
-        verbose:    bool = False,
-    ) -> WalkForwardReport:
+    def run(self, symbol: str = 'EURUSD', strategy: str = None, total_bars: int = 10000,
+            timeframe: str = 'H1', config: Dict = None, verbose: bool = False,
+            df_override: Optional[pd.DataFrame] = None) -> WalkForwardReport:
         """
         Descarga los datos una sola vez y ejecuta el walk-forward completo.
 
         Args:
-            symbol:     Par a analizar
-            strategy:   Nombre de la estrategia
-            total_bars: Total de velas históricas a descargar
-            timeframe:  Timeframe ('H1', 'H4', ...)
-            config:     Configuración de la estrategia (opcional)
-            verbose:    Si True, imprime progreso por ventana
+            symbol:      Par a analizar
+            strategy:    Nombre de la estrategia
+            total_bars:  Total de velas históricas a descargar
+            timeframe:   Timeframe ('H1', 'H4', ...)
+            config:      Configuración de la estrategia (opcional)
+            verbose:     Si True, imprime progreso por ventana
+            df_override: DataFrame histórico ya cargado (opcional)
 
         Returns:
             WalkForwardReport con todas las ventanas y métricas agregadas
         """
         from core.replay_engine import ReplayEngine
-        from services.mt5_client import get_candles, initialize as mt5_initialize
-        import MetaTrader5 as mt5
 
         strategy_instance = None
         try:
@@ -223,19 +216,36 @@ class WalkForwardTester:
             step_bars=self.step_bars, total_bars=total_bars,
         )
 
-        # ── 1. Descargar datos una sola vez ───────────────────────────────────
-        logger.info(f"[WF] Descargando {total_bars + self.lookback} velas para {symbol}...")
-        try:
-            mt5_initialize()
-            tf_map = {
-                'H1': mt5.TIMEFRAME_H1, 'H4': mt5.TIMEFRAME_H4,
-                'D1': mt5.TIMEFRAME_D1, 'M15': mt5.TIMEFRAME_M15,
-            }
-            mt5_tf = tf_map.get(timeframe.upper(), mt5.TIMEFRAME_H1)
-            df_full = get_candles(symbol, mt5_tf, total_bars + self.lookback)
-        except Exception as e:
-            logger.error(f"[WF] Error descargando datos: {e}")
-            return report
+        # ── 1. Obtener datos (df_override -> DataLoader -> MT5 fallback) ──────
+        total_bars_needed = total_bars + self.lookback
+        if df_override is not None:
+            df_full = df_override.reset_index(drop=True)
+            logger.info(f"[WF] Usando df_override con {len(df_full)} velas para {symbol}")
+        else:
+            df_full = None
+            try:
+                from services.data_loader import get_data_loader
+                loader = get_data_loader()
+                df_full, _ = loader.load(symbol=symbol, timeframe=timeframe, bars=total_bars_needed)
+                logger.info(f"[WF] Cargadas {len(df_full)} velas desde dataset local para {symbol}")
+            except Exception as e_local:
+                logger.debug(f"[WF] Dataset local no disponible para {symbol} ({timeframe}): {e_local}")
+
+            if df_full is None:
+                logger.info(f"[WF] Descargando {total_bars_needed} velas para {symbol} desde MT5...")
+                try:
+                    from services.mt5_client import get_candles, initialize as mt5_initialize
+                    import MetaTrader5 as mt5
+                    mt5_initialize()
+                    tf_map = {
+                        'H1': mt5.TIMEFRAME_H1, 'H4': mt5.TIMEFRAME_H4,
+                        'D1': mt5.TIMEFRAME_D1, 'M15': mt5.TIMEFRAME_M15,
+                    }
+                    mt5_tf = tf_map.get(timeframe.upper(), mt5.TIMEFRAME_H1)
+                    df_full = get_candles(symbol, mt5_tf, total_bars_needed)
+                except Exception as e:
+                    logger.error(f"[WF] Error descargando datos de MT5: {e}")
+                    return report
 
         if df_full is None or len(df_full) < self.lookback + self.train_bars + self.test_bars:
             logger.error(f"[WF] Datos insuficientes: {len(df_full) if df_full is not None else 0} velas")
@@ -332,8 +342,7 @@ class WalkForwardTester:
     def _run_window(self, df_window, symbol, strategy, config, bars, label='',
                     timeframe: str = 'H1'):
         """Ejecuta el replay engine sobre una ventana de datos ya descargados."""
-        from core.replay_engine import ReplayEngine
-        from core.engine import get_trading_engine
+        from core.replay_engine import ReplayEngine, get_trading_engine
 
         max_forward = getattr(self, 'max_forward_bars', 120)
         get_trading_engine().reset_replay_state(symbol)
