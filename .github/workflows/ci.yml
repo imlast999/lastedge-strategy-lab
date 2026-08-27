@@ -1,0 +1,52 @@
+name: Strategy Lab CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test & Validate (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set Up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Static Syntax & Compilation Validation
+        run: |
+          python -m compileall core services strategies tests
+
+      - name: Strategy Contract & Promotion Verification
+        run: |
+          python -c "from strategies.base import BaseStrategy, StrategyMetadata; from services.promotion import StrategyPromotionService; print('Strategy Lab Contracts OK')"
+
+      - name: Run Test Suite (25 Tests)
+        env:
+          PYTHONPATH: .
+          MT5_OFFLINE_MODE: "1"
+          LOG_LEVEL: ERROR
+        run: |
+          pytest tests/ -v --tb=short

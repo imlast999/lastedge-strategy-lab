@@ -1,5 +1,7 @@
 # LastEdge Strategy Lab
 
+[![Strategy Lab CI](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml)
+
 > **Repository:** `lastedge-strategy-lab`  
 > **Role:** Quantitative Research Laboratory, Walk Forward Optimization & Strategy Promotion  
 > **Status:** Production Ready  
@@ -92,12 +94,19 @@ python -m services.api_server 8082
 
 ---
 
-## 4. Running Tests
+## 4. Running Tests & Continuous Integration
 
 ```bash
-python -m pytest tests/
+# Run all Strategy Lab quantitative tests locally
+python -m pytest tests/ -v
 ```
 Current test suite status: **25 / 25 passed (100% Green)**.
+
+### CI / Continuous Integration:
+- **Pipeline**: Automated on every push and pull request to `main` via [GitHub Actions](.github/workflows/ci.yml).
+- **Environment**: Multi-Python matrix (3.10, 3.11, 3.12) on `ubuntu-latest`.
+- **Deterministic & Offline**: Operates in pure offline research mode without external service dependencies.
+- For complete CI details, see [docs/ci_cd_setup.md](docs/ci_cd_setup.md).
 
 ---
 
@@ -105,6 +114,7 @@ Current test suite status: **25 / 25 passed (100% Green)**.
 
 For in-depth guides, refer to the documentation in [`docs/`](docs/):
 
+- 🔄 [**CI/CD Setup**](docs/ci_cd_setup.md): GitHub Actions workflow and local parity.
 - 🏛️ [**Architecture**](docs/ARCHITECTURE.md): Research engine design and module boundaries.
 - ⚙️ [**Installation**](docs/INSTALLATION.md): Setup on Linux, macOS, and Windows.
 - 🔧 [**Configuration**](docs/CONFIGURATION.md): `.env`, `rules_config.json`, and database paths.
