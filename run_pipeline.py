@@ -226,18 +226,26 @@ def main():
             rules_config=default_config,
             validation_metrics=pipeline_report["stages"],
             source_module_path=source_module,
+            dataset_meta=data_meta.to_dict(),
             notes=f"Promoted via run_pipeline.py ({exp_id})"
         )
         print(f"  • Candidate Registered : {cand['candidate_id']}")
         print(f"  • Config Hash (SHA-256): {cand['config_hash']}")
         print(f"  • Code Hash (SHA-256)  : {cand['code_sha256'][:16]}...")
+        print(f"  • Dataset Hash (SHA256): {cand.get('dataset_sha256', '')[:16]}...")
 
         target_dir = Path(args.target_engine_dir)
         if target_dir.exists():
             prom_res = promo_svc.promote_to_production(cand["candidate_id"], approver=args.approver, target_engine_dir=target_dir)
-            print(f"  • Export to Engine     : {'SUCCESS ✅' if prom_res.get('ok') else 'FAILED ❌'}")
-            if prom_res.get("export", {}).get("verified"):
-                print(f"  • Bit-for-bit Verified : ✅ SHA-256 matches perfectly")
+            if prom_res.get("ok"):
+                print(f"  • Promotion Status     : SUCCESS ✅ (All validation gates passed)")
+                if prom_res.get("export", {}).get("verified"):
+                    print(f"  • Bit-for-bit Verified : ✅ SHA-256 matches perfectly in {prom_res['export']['dest_code_file']}")
+            else:
+                print(f"  • Promotion Status     : BLOCKED ❌")
+                print(f"  • Blocking Reasons     :")
+                for r in prom_res.get("reasons", [prom_res.get("error", "Unknown error")]):
+                    print(f"      - {r}")
         else:
             print(f"  • Target Engine Dir not found: {target_dir} (Candidate registered only)")
 
