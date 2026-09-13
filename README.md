@@ -3,7 +3,7 @@
 [![Strategy Lab CI](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml)
 
 > **Repository:** `lastedge-strategy-lab`  
-> **Role:** Quantitative Research Laboratory, Walk Forward Optimization & Strategy Promotion  
+> **Role:** Quantitative Research Laboratory, Historical Data Pipeline, WFA & Strategy Promotion  
 > **Status:** Production Ready  
 
 ---
@@ -42,10 +42,6 @@ LastEdge Strategy Lab/
 │   ├── filters.py                  # Volatility & regime market filters
 │   ├── scoring.py                  # Multi-metric robustness scoring
 │   └── exit_research/              # Exit strategy research framework
-│       ├── runner.py               # Exit research simulation runner
-│       ├── variants.py             # Trailing, partial, breakeven exit rules
-│       ├── metrics.py              # Exit efficiency scoring metrics
-│       └── strategy_adapter.py     # Strategy harness for exit experiments
 ├── data/
 │   ├── historical/                 # Canonical historical datasets (Parquet/CSV)
 │   ├── candidates/                 # Frozen promoted strategy manifests (.json)
@@ -63,7 +59,7 @@ LastEdge Strategy Lab/
 │   ├── xauusd.py                   # XAUUSD candidate model
 │   ├── btceur_new.py               # BTCEUR candidate model
 │   └── experimental/               # Sandbox experimental prototypes
-├── tests/                          # 31 automated quantitative test suites
+├── tests/                          # 36 automated quantitative test suites
 └── docs/                           # Technical documentation
 ```
 
@@ -113,13 +109,12 @@ python -m services.api_server 8082
 # Run all Strategy Lab quantitative tests locally
 python -m pytest tests/ -v
 ```
-Current test suite status: **25 / 25 passed (100% Green)**.
+Current test suite status: **36 / 36 passed (100% Green)**.
 
 ### CI / Continuous Integration:
 - **Pipeline**: Automated on every push and pull request to `main` via [GitHub Actions](.github/workflows/ci.yml).
-- **Environment**: Multi-Python matrix (3.10, 3.11, 3.12) on `ubuntu-latest`.
+- **Environment**: Multi-Python matrix (3.10, 3.11, 3.12, 3.13) on Ubuntu and Windows.
 - **Deterministic & Offline**: Operates in pure offline research mode without external service dependencies.
-- For complete CI details, see [docs/ci_cd_setup.md](docs/ci_cd_setup.md).
 
 ---
 
@@ -127,18 +122,12 @@ Current test suite status: **25 / 25 passed (100% Green)**.
 
 For in-depth guides, refer to the documentation in [`docs/`](docs/):
 
-- 🔄 [**CI/CD Setup**](docs/ci_cd_setup.md): GitHub Actions workflow and local parity.
 - 🏛️ [**Architecture**](docs/ARCHITECTURE.md): Research engine design and module boundaries.
 - ⚙️ [**Installation**](docs/INSTALLATION.md): Setup on Linux, macOS, and Windows.
 - 🔧 [**Configuration**](docs/CONFIGURATION.md): `.env`, `rules_config.json`, and database paths.
-- 🔬 [**Research Workflow**](docs/RESEARCH.md): The scientific lifecycle from hypothesis to production.
-- 📊 [**Backtesting Engine**](docs/BACKTESTING.md): Realistic execution costs and replay mechanics.
-- 🎯 [**Optimization**](docs/OPTIMIZATION.md): Parameter grid search and out-of-sample validation.
-- 🔄 [**Walk Forward Analysis**](docs/WALK_FORWARD.md): WFA windows, scoring, and overfitting prevention.
-- 🎲 [**Monte Carlo Engine**](docs/MONTE_CARLO.md): Risk of ruin, drawdown confidence intervals, and bootstrap tests.
-- 🚪 [**Exit Research**](docs/EXIT_RESEARCH.md): Exit rules, partial closures, and ATR trailing optimization.
-- 💡 [**Strategy Generation**](docs/STRATEGY_GENERATION.md): Creating compliant candidate strategies.
-- 📜 [**Strategy Contract**](docs/STRATEGY_CONTRACT.md): Specification of `BaseStrategy` and metadata.
-- 🚀 [**Promotion Pipeline**](docs/PROMOTION.md): Candidate freezing, SHA-256 hashing, and export to Trading Engine.
-- 🛡️ [**Validation Framework**](docs/VALIDATION.md): Multi-year longevity tests and robust scoring.
-- 🧪 [**Testing Guide**](docs/TESTING.md): Quantitative unit tests and benchmark suites.
+- 📂 [**Historical Data Pipeline**](docs/DATA_PIPELINE.md): Parquet/CSV dataset loading, validation, and SHA-256 metadata.
+- 🔬 [**Research Pipeline**](docs/RESEARCH.md): Scientific workflow, realistic backtesting, optimization scoring, and exit research.
+- 🛡️ [**Validation & Stress Testing**](docs/VALIDATION.md): Walk Forward Analysis (WFA), Monte Carlo simulation, and multi-year longevity.
+- 📜 [**Strategy Contract**](docs/STRATEGY_CONTRACT.md): Canonical BaseStrategy definition and authoring guide.
+- 🚀 [**Strategy Promotion**](docs/PROMOTION.md): Promotion lifecycle, security gates, triplet hashes, and production export.
+- 🧪 [**Testing & CI/CD**](docs/TESTING.md): Test execution, suite inventory, and GitHub Actions specification.
