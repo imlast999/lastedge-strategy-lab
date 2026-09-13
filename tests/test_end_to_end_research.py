@@ -4,6 +4,7 @@ tests/test_end_to_end_research.py
 """
 
 import os
+import sys
 import json
 import pytest
 import tempfile
@@ -149,7 +150,7 @@ def test_end_to_end_research_to_promotion_lifecycle():
         strat_file = lab_dir / "strategies" / "test_trend_strategy.py"
         strat_file.parent.mkdir(parents=True, exist_ok=True)
         strat_file.write_text("""
-from strategies.base import BaseStrategy, StrategyMetadata
+from strategies.base import BaseStrategy, StrategyMetadata, SignalIntent
 import pandas as pd
 
 class TestTrendStrategy(BaseStrategy):
@@ -163,7 +164,15 @@ class TestTrendStrategy(BaseStrategy):
     def _add_specific_indicators(self, df, cfg):
         return df
     def detect_setup(self, df, cfg=None):
-        return None
+        return SignalIntent(
+            type="BUY",
+            entry=1.0850,
+            sl=1.0800,
+            tp=1.0950,
+            symbol="EURUSD",
+            timeframe="H1",
+            explanation="E2E Research Validated Signal"
+        )
 """, encoding="utf-8")
 
         # 5. Register Candidate with Full Validation Metrics & Hashes
@@ -211,3 +220,43 @@ class TestTrendStrategy(BaseStrategy):
         assert manifest["strategy_name"] == "test_trend_pullback"
         assert manifest["code_sha256"] == cand["code_sha256"]
         assert manifest["dataset_sha256"] == data_meta.file_hash_sha256
+
+        # 8. Cross-repo Ingestion Verification in Engine
+        engine_repo_dir = Path(__file__).resolve().parent.parent.parent / "LastEdge Trading Engine"
+        if engine_repo_dir.exists():
+            import subprocess
+            verify_script = f"""
+import sys
+from pathlib import Path
+import pandas as pd
+sys.path.insert(0, r"{engine_repo_dir}")
+
+from services.strategy_loader import discover_promoted_strategies
+import services.signals as signals_svc
+import strategies
+
+# Discover package in temporary exported dir
+discovered = discover_promoted_strategies(Path(r"{engine_dir / 'strategies'}"))
+assert len(discovered) == 1, f"Expected 1 strategy, got {{len(discovered)}}"
+info = list(discovered.values())[0]
+cls = info["class"]
+assert cls.__name__ == "TestTrendStrategy"
+
+# Test registration and detection
+signals_svc.register_strategy("test_promoted_trend", cls)
+df_test = pd.DataFrame({{
+    'open': [1.08] * 70,
+    'high': [1.085] * 70,
+    'low': [1.075] * 70,
+    'close': [1.082] * 70,
+    'volume': [100] * 70
+}})
+sig, _ = signals_svc.detect_signal(df_test, symbol="EURUSD", strategy="test_promoted_trend")
+assert sig is not None
+assert hasattr(sig, 'type') and sig.type == "BUY"
+assert sig.entry == 1.0850
+print("CROSS_REPO_LIFECYCLE_SUCCESS")
+"""
+            proc = subprocess.run([sys.executable, "-c", verify_script], capture_output=True, text=True)
+            assert proc.returncode == 0, f"Cross-repo Engine verification failed: {proc.stderr}"
+            assert "CROSS_REPO_LIFECYCLE_SUCCESS" in proc.stdout
