@@ -2,15 +2,16 @@
 
 [![Strategy Lab CI](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml)
 
-> **Repository:** `lastedge-strategy-lab`  
+> **Repository:** [`imlast999/lastedge-strategy-lab`](https://github.com/imlast999/lastedge-strategy-lab)  
 > **Role:** Quantitative Research Laboratory, Historical Data Pipeline, WFA & Strategy Promotion  
 > **Status:** Production Ready  
+> **Tests:** 46 / 46 Passed (100% Green)  
 
 ---
 
 ## 1. Overview
 
-**LastEdge Strategy Lab** is the scientific and quantitative engine of the LastEdge platform. It empowers quantitative researchers to design, backtest, optimize, stress-test, and promote algorithmic trading strategies using empirical mathematical models.
+**LastEdge Strategy Lab** is the scientific and quantitative research engine of the LastEdge platform. It empowers quantitative researchers to design, backtest, optimize, stress-test, and promote algorithmic trading strategies using empirical mathematical models.
 
 ### Key Capabilities:
 - **Unified Research Pipeline CLI**: Single-command orchestrator for Backtesting, Exit Research, WFA, Monte Carlo, and Promotion (`run_pipeline.py`).
@@ -19,13 +20,27 @@
 - **Walk Forward Analysis (WFA)**: Multi-window rolling optimization with out-of-sample stability scoring (`core/walkforward.py`).
 - **Monte Carlo Engine**: Statistical resimulation for maximum drawdown and risk-of-ruin probability at 95% and 99% confidence levels (`core/montecarlo.py`).
 - **Exit Research Framework**: Independent exit rule optimization (partial exits, ATR trailing, dynamic breakeven).
-- **Candidate Promotion Pipeline**: Automated candidate registration, configuration freezing, SHA-256 code hashing, and packaging for `Trading Engine` (`services/promotion.py`).
+- **Candidate Promotion Pipeline**: Automated candidate registration, configuration freezing, SHA-256 code hashing, and cryptographic packaging for `Trading Engine` (`services/promotion.py`).
+- **Typed Signal Contract**: Canonical implementation of [`SignalIntent`](strategies/base.py) with bit-for-bit parity with Trading Engine.
 - **Research REST API**: Local HTTP server on port `8082` for research experiments and candidate listing.
 - **Platform Independence**: Runs in offline mode on Windows, macOS, and Linux without requiring MetaTrader 5 installed.
 
 ---
 
-## 2. Architecture & Modules
+## 2. Ecosystem & Sister Repositories
+
+LastEdge is designed as a tri-system decoupled architecture. Strategy Lab operates autonomously in research and data processing while providing verified trading algorithms to the ecosystem:
+
+| Repository | Role | Integration Point |
+| :--- | :--- | :--- |
+| ⚡ [**LastEdge Trading Engine**](https://github.com/imlast999/lastedge-trading-engine) | MT5 Execution & Risk Engine v2 | **Candidate Ingestion**: Once strategies pass quantitative validation gates (WFA WES $\ge 0.60$, Monte Carlo Ruin $\le 5\%$), Strategy Lab exports verified packages (`.py` + `.json` sidecars with `code_sha256` and `config_hash`) directly into Trading Engine's `strategies/` directory for live execution. |
+| 📱 [**LastEdge App**](https://github.com/imlast999/lastedge-app) | Web Dashboard, Mobile & Bots | **Research Telemetry & Control**: LastEdge App queries Strategy Lab's REST API (`http://localhost:8082`) to display backtest results, active research candidates, and trigger pipeline runs remotely. |
+
+Both Strategy Lab and the Trading Engine adhere strictly to the shared [`strategies/base.py`](strategies/base.py) contract with typed `SignalIntent` specifications.
+
+---
+
+## 3. Architecture & Directory Structure
 
 ```text
 LastEdge Strategy Lab/
@@ -54,18 +69,18 @@ LastEdge Strategy Lab/
 │   ├── promotion.py                # StrategyPromotionService (SHA-256 packaging)
 │   └── long_forward_validation.py  # Out-of-sample long period validator
 ├── strategies/
-│   ├── base.py                     # Canonical BaseStrategy & StrategyMetadata contract
+│   ├── base.py                     # Canonical BaseStrategy & SignalIntent contract
 │   ├── eurusd.py                   # EURUSD candidate model
 │   ├── xauusd.py                   # XAUUSD candidate model
 │   ├── btceur_new.py               # BTCEUR candidate model
 │   └── experimental/               # Sandbox experimental prototypes
-├── tests/                          # 36 automated quantitative test suites
+├── tests/                          # 46 automated quantitative test suites
 └── docs/                           # Technical documentation
 ```
 
 ---
 
-## 3. Quick Start & Installation
+## 4. Quick Start & Installation
 
 ### Requirements:
 - Python 3.10+ (Windows, macOS, Linux)
@@ -103,13 +118,13 @@ python -m services.api_server 8082
 
 ---
 
-## 4. Running Tests & Continuous Integration
+## 5. Running Tests & Continuous Integration
 
 ```bash
 # Run all Strategy Lab quantitative tests locally
 python -m pytest tests/ -v
 ```
-Current test suite status: **36 / 36 passed (100% Green)**.
+Current test suite status: **46 / 46 passed (100% Green)**.
 
 ### CI / Continuous Integration:
 - **Pipeline**: Automated on every push and pull request to `main` via [GitHub Actions](.github/workflows/ci.yml).
@@ -118,9 +133,9 @@ Current test suite status: **36 / 36 passed (100% Green)**.
 
 ---
 
-## 5. Documentation Index
+## 6. Documentation Index
 
-For in-depth guides, refer to the documentation in [`docs/`](docs/):
+For in-depth guides, refer to [`docs/`](docs/):
 
 - 🏛️ [**Architecture**](docs/ARCHITECTURE.md): Research engine design and module boundaries.
 - ⚙️ [**Installation**](docs/INSTALLATION.md): Setup on Linux, macOS, and Windows.
@@ -128,6 +143,6 @@ For in-depth guides, refer to the documentation in [`docs/`](docs/):
 - 📂 [**Historical Data Pipeline**](docs/DATA_PIPELINE.md): Parquet/CSV dataset loading, validation, and SHA-256 metadata.
 - 🔬 [**Research Pipeline**](docs/RESEARCH.md): Scientific workflow, realistic backtesting, optimization scoring, and exit research.
 - 🛡️ [**Validation & Stress Testing**](docs/VALIDATION.md): Walk Forward Analysis (WFA), Monte Carlo simulation, and multi-year longevity.
-- 📜 [**Strategy Contract**](docs/STRATEGY_CONTRACT.md): Canonical BaseStrategy definition and authoring guide.
+- 📜 [**Strategy Contract**](docs/STRATEGY_CONTRACT.md): Canonical BaseStrategy definition, `SignalIntent`, and authoring guide.
 - 🚀 [**Strategy Promotion**](docs/PROMOTION.md): Promotion lifecycle, security gates, triplet hashes, and production export.
 - 🧪 [**Testing & CI/CD**](docs/TESTING.md): Test execution, suite inventory, and GitHub Actions specification.
