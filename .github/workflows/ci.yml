@@ -43,7 +43,7 @@ jobs:
         run: |
           python -c "from strategies.base import BaseStrategy, StrategyMetadata; from services.promotion import StrategyPromotionService; print('Strategy Lab Contracts OK')"
 
-      - name: Run Test Suite (25 Tests)
+      - name: Run Test Suite (46 Tests)
         env:
           PYTHONPATH: .
           MT5_OFFLINE_MODE: "1"
