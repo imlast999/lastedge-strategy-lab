@@ -4,7 +4,7 @@
 
 # LastEdge Strategy Lab
 
-[![Strategy Lab CI](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml)
+[![Strategy Lab CI](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml)
 
 > **Repository:** [`imlast999/lastedge-strategy-lab`](https://github.com/imlast999/lastedge-strategy-lab)  
 > **Role:** Quantitative Research Laboratory, Historical Data Pipeline, WFA & Strategy Promotion  
