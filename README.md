@@ -1,3 +1,7 @@
+<div align="center">
+
+<img src="branding/LastEdge_Banner.png" alt="LastEdge Strategy Lab Banner" width="100%">
+
 # LastEdge Strategy Lab
 
 [![Strategy Lab CI](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml)
@@ -6,6 +10,8 @@
 > **Role:** Quantitative Research Laboratory, Historical Data Pipeline, WFA & Strategy Promotion  
 > **Status:** Production Ready  
 > **Tests:** 46 / 46 Passed (100% Green)  
+
+</div>
 
 ---
 
