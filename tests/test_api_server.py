@@ -1,50 +1,64 @@
 import json
 import time
+import unittest
 import urllib.request
-import pytest
+import urllib.error
 from services.api_server import ResearchAPIServer
 
 
-def test_research_api_server_endpoints():
-    port = 8892
-    server = ResearchAPIServer(port=port)
-    server.start()
-    time.sleep(0.3)
+class TestResearchAPIServer(unittest.TestCase):
+    def test_research_api_server_endpoints(self):
+        port = 8892
+        server = ResearchAPIServer(port=port)
+        server.start()
+        time.sleep(0.3)
 
-    try:
-        # Test status
-        req = urllib.request.urlopen(f"http://localhost:{port}/api/research/status")
-        assert req.status == 200
-        data = json.loads(req.read().decode("utf-8"))
-        assert data.get("ok") is True
-        assert data.get("service") == "LastEdge Strategy Lab"
-        assert data.get("status") == "ONLINE"
+        try:
+            # Test root / discovery index
+            req_root = urllib.request.urlopen(f"http://localhost:{port}/")
+            self.assertEqual(req_root.status, 200)
+            root_data = json.loads(req_root.read().decode("utf-8"))
+            self.assertTrue(root_data.get("ok"))
+            self.assertEqual(root_data.get("service"), "LastEdge Strategy Lab")
+            self.assertIn("endpoints", root_data)
 
-        # Test health
-        req_health = urllib.request.urlopen(f"http://localhost:{port}/api/research/health")
-        assert req_health.status == 200
-        health_data = json.loads(req_health.read().decode("utf-8"))
-        assert health_data.get("ok") is True
+            # Test status
+            req = urllib.request.urlopen(f"http://localhost:{port}/api/research/status")
+            self.assertEqual(req.status, 200)
+            data = json.loads(req.read().decode("utf-8"))
+            self.assertTrue(data.get("ok"))
+            self.assertEqual(data.get("service"), "LastEdge Strategy Lab")
+            self.assertEqual(data.get("status"), "ONLINE")
 
-        # Test experiments
-        req_exps = urllib.request.urlopen(f"http://localhost:{port}/api/research/experiments")
-        assert req_exps.status == 200
-        exps_data = json.loads(req_exps.read().decode("utf-8"))
-        assert exps_data.get("ok") is True
-        assert "experiments" in exps_data
+            # Test health
+            req_health = urllib.request.urlopen(f"http://localhost:{port}/api/research/health")
+            self.assertEqual(req_health.status, 200)
+            health_data = json.loads(req_health.read().decode("utf-8"))
+            self.assertTrue(health_data.get("ok"))
 
-        # Test candidates
-        req_cand = urllib.request.urlopen(f"http://localhost:{port}/api/research/candidates")
-        assert req_cand.status == 200
-        cand_data = json.loads(req_cand.read().decode("utf-8"))
-        assert cand_data.get("ok") is True
-        assert "candidates" in cand_data
+            # Test experiments
+            req_exps = urllib.request.urlopen(f"http://localhost:{port}/api/research/experiments")
+            self.assertEqual(req_exps.status, 200)
+            exps_data = json.loads(req_exps.read().decode("utf-8"))
+            self.assertTrue(exps_data.get("ok"))
+            self.assertIn("experiments", exps_data)
 
-        # Test 404
-        with pytest.raises(urllib.error.HTTPError) as exc_info:
-            urllib.request.urlopen(f"http://localhost:{port}/api/non_existent")
-        assert exc_info.value.code == 404
+            # Test candidates
+            req_cand = urllib.request.urlopen(f"http://localhost:{port}/api/research/candidates")
+            self.assertEqual(req_cand.status, 200)
+            cand_data = json.loads(req_cand.read().decode("utf-8"))
+            self.assertTrue(cand_data.get("ok"))
+            self.assertIn("candidates", cand_data)
 
-    finally:
-        server.stop()
-        time.sleep(0.2)
+            # Test 404
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.urlopen(f"http://localhost:{port}/api/non_existent")
+            self.assertEqual(cm.exception.code, 404)
+
+        finally:
+            server.stop()
+            time.sleep(0.2)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -54,8 +54,26 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0].rstrip("/")
 
         try:
+            # ── Root Index & Discovery ─────────────────────────────────────────
+            if path in ("", "/", "/api"):
+                self._send_json(200, {
+                    "ok": True,
+                    "service": "LastEdge Strategy Lab",
+                    "version": "1.0.0",
+                    "status": "ONLINE",
+                    "endpoints": {
+                        "health": "/api/health",
+                        "status": "/api/research/status",
+                        "experiments": "/api/research/experiments",
+                        "candidates": "/api/research/candidates",
+                        "wfa": "/api/research/wfa",
+                        "monte_carlo": "/api/research/monte-carlo"
+                    },
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+
             # ── Health & Status ───────────────────────────────────────────────
-            if path in ("/api/research/health", "/api/health", "/health"):
+            elif path in ("/api/research/health", "/api/health", "/health"):
                 self._send_json(200, {
                     "ok": True,
                     "service": "LastEdge Strategy Lab",
