@@ -120,20 +120,8 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
 
             # ── Available Strategies Registry ─────────────────────────────────
             elif path in ("/api/research/strategies", "/api/strategies"):
-                from core.exit_research.strategy_adapter import _STRATEGY_REGISTRY
-                available = []
-                for sym, (mod, cls) in _STRATEGY_REGISTRY.items():
-                    available.append({
-                        "symbol": sym,
-                        "strategy": cls.replace("Strategy", "").lower(),
-                        "class_name": cls,
-                        "module": mod,
-                    })
-                self._send_json(200, {
-                    "ok": True,
-                    "strategies": available,
-                    "count": len(available)
-                })
+                from core.strategy_catalog import get_strategy_catalog
+                self._send_json(200, get_strategy_catalog())
 
             else:
                 self._send_json(404, {"ok": False, "error": f"Endpoint '{self.path}' not found on Strategy Lab API."})

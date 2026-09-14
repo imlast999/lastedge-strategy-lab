@@ -108,16 +108,38 @@ class BacktestService:
         sym = symbol.upper()
         tf = timeframe.upper()
 
-        # 1. Resolver estrategia
-        try:
-            adapter = adapter_for_symbol(sym)
-            strat = adapter.strategy
-            strat_name = strategy_name or getattr(strat.metadata, "strategy_name", adapter.name)
-        except Exception as e:
+        # 1. Validar y resolver estrategia y timeframe desde Strategy Catalog
+        from core.strategy_catalog import get_strategy_metadata, get_strategies_for_symbol
+        available_strats = get_strategies_for_symbol(sym)
+        if not available_strats:
             return {
                 "ok": False,
-                "error": f"No se pudo inicializar la estrategia para {sym}: {e}",
+                "error": f"Símbolo no soportado o sin estrategias registradas: {sym}",
             }
+
+        selected_meta = None
+        if strategy_name:
+            strat_req = strategy_name.lower().strip()
+            for s in available_strats:
+                if s["id"].lower() == strat_req:
+                    selected_meta = s
+                    break
+            if not selected_meta:
+                valid_ids = [s["id"] for s in available_strats]
+                return {
+                    "ok": False,
+                    "error": f"La estrategia '{strategy_name}' no es válida para el par {sym}. Estrategias permitidas: {valid_ids}",
+                }
+        else:
+            selected_meta = available_strats[0]
+
+        strat_name = selected_meta["id"]
+
+        # Validar timeframe permitido
+        allowed_tfs = [t.upper() for t in selected_meta.get("allowed_timeframes", ["H1"])]
+        if tf not in allowed_tfs:
+            logger.info(f"Timeframe {tf} no permitido para {strat_name} ({allowed_tfs}). Ajustando a default {selected_meta.get('default_timeframe', allowed_tfs[0])}")
+            tf = selected_meta.get("default_timeframe", allowed_tfs[0]).upper()
 
         # 2. Cargar datos
         df_candles = self._ensure_dataset(sym, timeframe=tf, requested_bars=bars)
