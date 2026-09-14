@@ -118,6 +118,23 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
                     "count": len(candidates)
                 })
 
+            # ── Available Strategies Registry ─────────────────────────────────
+            elif path in ("/api/research/strategies", "/api/strategies"):
+                from core.exit_research.strategy_adapter import _STRATEGY_REGISTRY
+                available = []
+                for sym, (mod, cls) in _STRATEGY_REGISTRY.items():
+                    available.append({
+                        "symbol": sym,
+                        "strategy": cls.replace("Strategy", "").lower(),
+                        "class_name": cls,
+                        "module": mod,
+                    })
+                self._send_json(200, {
+                    "ok": True,
+                    "strategies": available,
+                    "count": len(available)
+                })
+
             else:
                 self._send_json(404, {"ok": False, "error": f"Endpoint '{self.path}' not found on Strategy Lab API."})
 
@@ -145,6 +162,26 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
                 from services.promotion import get_promotion_service
                 res = get_promotion_service().promote_to_production(candidate_id=candidate_id, approver=approver)
                 self._send_json(200 if res.get("ok") else 400, res)
+
+            elif path in ("/api/research/backtest", "/api/backtest"):
+                from services.backtest_service import get_backtest_service
+                symbol = body_data.get("symbol", "EURUSD")
+                strategy = body_data.get("strategy")
+                timeframe = body_data.get("timeframe", "H1")
+                bars = int(body_data.get("bars", 5000))
+                sl_pips = float(body_data["sl_pips"]) if body_data.get("sl_pips") is not None else None
+                tp_pips = float(body_data["tp_pips"]) if body_data.get("tp_pips") is not None else None
+
+                svc = get_backtest_service()
+                report = svc.run_backtest(
+                    symbol=symbol,
+                    strategy_name=strategy,
+                    timeframe=timeframe,
+                    bars=bars,
+                    sl_pips=sl_pips,
+                    tp_pips=tp_pips,
+                )
+                self._send_json(200 if report.get("ok") else 400, report)
 
             else:
                 self._send_json(404, {"ok": False, "error": f"POST endpoint '{self.path}' not found."})
