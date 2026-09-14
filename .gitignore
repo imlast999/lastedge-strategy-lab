@@ -14,8 +14,8 @@ data/*.db-shm
 research.db
 research.db-wal
 research.db-shm
-data/historical/*.csv
-data/historical/*.parquet
+data/historical/
+data/cache/
 
 # Logs
 logs/
