@@ -154,6 +154,15 @@ def adapter_for_strategy(
         key = symbol.upper().strip()
 
     if key not in _STRATEGY_REGISTRY:
+        # Fallback dinámico a estrategias del Vault o promovidas en strategies.STRATEGY_REGISTRY
+        try:
+            from strategies import STRATEGY_REGISTRY as GLOBAL_REG
+            candidate_cls = GLOBAL_REG.get(key) or GLOBAL_REG.get(strategy_name.lower())
+            if candidate_cls is not None:
+                return StrategyAdapter(candidate_cls(), config=config)
+        except Exception:
+            pass
+
         registered = ", ".join(sorted(_STRATEGY_REGISTRY.keys()))
         raise ValueError(
             f"Estrategia o símbolo '{strategy_name}' no registrado. Disponibles: {registered}"
