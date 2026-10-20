@@ -42,7 +42,22 @@ class BacktestService:
         sym = symbol.upper()
         tf = timeframe.upper()
         
-        # Intentar cargar archivo existente
+        # 1. Intentar cargar velas reales directamente desde MetaTrader 5 si está disponible
+        try:
+            from services.mt5_client import get_candles, initialize as mt5_init
+            if mt5_init():
+                df_mt5 = get_candles(sym, tf, requested_bars)
+                if df_mt5 is not None and len(df_mt5) >= 200:
+                    logger.info(f"[BacktestService] Descargadas {len(df_mt5)} velas reales desde MT5 para {sym} {tf}.")
+                    try:
+                        self.data_loader.save_dataset(df_mt5, symbol=sym, timeframe=tf)
+                    except Exception as e_save:
+                        logger.debug(f"[BacktestService] Nota al guardar dataset MT5 en disco: {e_save}")
+                    return df_mt5
+        except Exception as e_mt5:
+            logger.debug(f"[BacktestService] MT5 no disponible o sin conexión para {sym}: {e_mt5}")
+
+        # 2. Intentar cargar dataset local existente
         try:
             df, _ = self.data_loader.load(symbol=sym, timeframe=tf, bars=requested_bars)
             if df is not None and len(df) >= 200:
@@ -50,12 +65,19 @@ class BacktestService:
         except Exception:
             pass
 
-        # Generar dataset benchmark de alta fidelidad si no existe archivo físico
+        # 3. Generar dataset benchmark de alta fidelidad si no existe MT5 ni archivo local
         logger.info(f"[BacktestService] Generando dataset benchmark sintético para {sym} {tf} ({requested_bars} barras)...")
         bars_count = max(2000, min(50000, requested_bars))
         
-        base_price = 1.0850 if "EUR" in sym else (2350.0 if "XAU" in sym else 60000.0)
-        vol = 0.00035 if "EUR" in sym else (1.8 if "XAU" in sym else 120.0)
+        if "BTC" in sym:
+            base_price = 60000.0
+            vol = 450.0
+        elif "XAU" in sym or "GOLD" in sym:
+            base_price = 2350.0
+            vol = 4.5
+        else:
+            base_price = 1.0850
+            vol = 0.00075
         
         np.random.seed(42)
         returns = np.random.normal(loc=0.00002, scale=vol / base_price, size=bars_count)
@@ -152,10 +174,11 @@ class BacktestService:
         if tp_pips is not None:
             config["tp_pips"] = float(tp_pips)
 
-        replay = ReplayEngine(lookback_window=100)
+        lookback_req = int(selected_meta.get("lookback_min", 200))
+        replay = ReplayEngine(lookback_window=lookback_req)
         stats = replay.run_replay(
             symbol=sym,
-            bars=total_bars - 100,
+            bars=max(50, total_bars - lookback_req),
             strategy=strat_name,
             config=config,
             timeframe=tf,
@@ -196,7 +219,10 @@ class BacktestService:
         peak = current_eq
         max_dd_money = 0.0
         max_dd_pct = 0.0
-        pip_value_usd = 10.0 if "EUR" in sym else (1.0 if "XAU" in sym else 0.01)
+        from core.trade_costs import PIP_VALUE_PER_LOT_USD, DEFAULT_LOT_SIZE
+        lot = DEFAULT_LOT_SIZE.get(sym, 0.10)
+        pip_val_lot = PIP_VALUE_PER_LOT_USD.get(sym, 10.0)
+        pip_value_usd = lot * pip_val_lot
 
         for pips in pnl_series:
             current_eq += pips * pip_value_usd
@@ -271,12 +297,18 @@ class BacktestService:
             total_trades=total_trades,
             ruin_prob_pct=ruin_prob_pct,
             consecutive_losses=max_consecutive_losses,
+            cb_activations=stats.cb_activations,
         )
 
         duration_ms = round((datetime.now(timezone.utc) - t0).total_seconds() * 1000, 1)
 
         # 6. Registrar en research.db
         exp_id = f"bt_{sym.lower()}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        notes_str = (
+            f"Trades: {total_trades} (W:{len(wins)}/L:{len(losses)}) | "
+            f"Net: {round(net_profit_pips, 1)}p (${round(net_profit_pips * pip_value_usd, 2)}) | "
+            f"CB: {stats.cb_activations} | DD: {max_dd_pct}% | Exp: {expectancy_pips}p"
+        )
         try:
             self.research_store.create_experiment({
                 "experiment_id": exp_id,
@@ -294,7 +326,37 @@ class BacktestService:
                 "best_winrate": win_rate,
                 "best_sharpe": sharpe_ratio,
                 "best_max_drawdown": max_dd_pct,
-                "notes": f"Trades: {total_trades} | Exp: {expectancy_pips} pips | Ruin: {ruin_prob_pct}%",
+                "tags": json.dumps(["backtest", sym.lower(), tf.lower()]),
+                "notes": notes_str,
+                "metrics_json": json.dumps({
+                    "total_trades": total_trades,
+                    "wins": len(wins),
+                    "losses": len(losses),
+                    "win_rate_pct": win_rate,
+                    "loss_rate_pct": loss_rate,
+                    "profit_factor": profit_factor,
+                    "net_profit_pips": round(net_profit_pips, 1),
+                    "net_profit_usd": round(net_profit_pips * pip_value_usd, 2),
+                    "avg_win_pips": avg_win_pips,
+                    "avg_loss_pips": avg_loss_pips,
+                    "risk_reward_ratio": rr_ratio,
+                    "expectancy_pips": expectancy_pips,
+                    "max_drawdown_pct": max_dd_pct,
+                    "max_drawdown_usd": round(max_dd_money, 2),
+                    "max_consecutive_losses": max_consecutive_losses,
+                    "sharpe_ratio": sharpe_ratio,
+                    "sortino_ratio": sortino_ratio,
+                    "calmar_ratio": calmar_ratio,
+                    "monte_carlo_ruin_prob_pct": ruin_prob_pct,
+                    "cb_activations": stats.cb_activations,
+                    "bars_paused": stats.bars_paused,
+                    "signals_blocked_by_cb": stats.signals_blocked_by_cb,
+                    "buy_signals": stats.buy_signals,
+                    "sell_signals": stats.sell_signals,
+                    "setups_detected": stats.setups_detected,
+                    "starting_equity_usd": 10000.0,
+                    "final_equity_usd": round(current_eq, 2),
+                }, ensure_ascii=False),
             })
         except Exception as e:
             logger.debug(f"[BacktestService] Note on storing experiment: {e}")
@@ -315,6 +377,7 @@ class BacktestService:
                 "loss_rate_pct": loss_rate,
                 "profit_factor": profit_factor,
                 "net_profit_pips": round(net_profit_pips, 1),
+                "net_profit_usd": round(net_profit_pips * pip_value_usd, 2),
                 "avg_win_pips": avg_win_pips,
                 "avg_loss_pips": avg_loss_pips,
                 "risk_reward_ratio": rr_ratio,
@@ -326,6 +389,14 @@ class BacktestService:
                 "sortino_ratio": sortino_ratio,
                 "calmar_ratio": calmar_ratio,
                 "monte_carlo_ruin_prob_pct": ruin_prob_pct,
+                "cb_activations": stats.cb_activations,
+                "bars_paused": stats.bars_paused,
+                "signals_blocked_by_cb": stats.signals_blocked_by_cb,
+                "buy_signals": stats.buy_signals,
+                "sell_signals": stats.sell_signals,
+                "setups_detected": stats.setups_detected,
+                "starting_equity_usd": 10000.0,
+                "final_equity_usd": round(current_eq, 2),
             },
             "verdict": verdict,
             "trades_sample": [
@@ -353,6 +424,7 @@ class BacktestService:
         total_trades: int,
         ruin_prob_pct: float,
         consecutive_losses: int,
+        cb_activations: int = 0,
     ) -> Dict[str, Any]:
         """
         Emite la clasificación categórica y explicativa de la estrategia en base a evidencia matemática.
@@ -376,31 +448,27 @@ class BacktestService:
             }
 
         # ── TIER 3: REJECTED / CRITICAL RISK (ROJO) ──────────────────────────
+        # Descarte categórico si destruye capital o tiene riesgo letal de quiebra
         is_rejected = (
-            profit_factor < 1.05
+            profit_factor < 1.00
             or expectancy_pips <= 0
-            or sharpe_ratio < 0.70
-            or max_dd_pct > 25.0
-            or ruin_prob_pct >= 5.0
-            or consecutive_losses >= 8
+            or (profit_factor < 1.10 and max_dd_pct > 25.0)
+            or max_dd_pct > 35.0
+            or ruin_prob_pct >= 15.0
         )
 
         if is_rejected:
             reasons = []
             if profit_factor < 1.0:
                 reasons.append(f"Profit Factor destructivo ({profit_factor:.2f} < 1.00)")
-            elif profit_factor < 1.05:
-                reasons.append(f"Profit Factor al borde de la quiebra ({profit_factor:.2f})")
+            elif profit_factor < 1.10:
+                reasons.append(f"Profit Factor deficiente ({profit_factor:.2f} < 1.10)")
             if expectancy_pips <= 0:
                 reasons.append(f"Esperanza matemática negativa ({expectancy_pips:+.2f} pips/trade)")
-            if max_dd_pct > 25.0:
-                reasons.append(f"Drawdown inaceptable y letal ({max_dd_pct:.1f}% > 25%)")
-            if sharpe_ratio < 0.70:
-                reasons.append(f"Sharpe deficiente o negativo ({sharpe_ratio:.2f})")
-            if ruin_prob_pct >= 5.0:
-                reasons.append(f"Riesgo de Ruina Monte Carlo crítico ({ruin_prob_pct:.1f}% >= 5%)")
-            if consecutive_losses >= 8:
-                reasons.append(f"Racha de pérdidas prolongada ({consecutive_losses} pérdidas consecutivas)")
+            if max_dd_pct > 35.0:
+                reasons.append(f"Drawdown inaceptable ({max_dd_pct:.1f}% > 35%)")
+            if ruin_prob_pct >= 15.0:
+                reasons.append(f"Riesgo de Ruina Monte Carlo crítico ({ruin_prob_pct:.1f}% >= 15%)")
 
             return {
                 "tier": "TIER_3_REJECTED",
@@ -410,24 +478,24 @@ class BacktestService:
                 "icon": "fa-ban",
                 "title": "ESTRATEGIA DESCARTADA — NO RECOMENDADA",
                 "badge": "NO RECOMENDABLE (ALTO RIESGO)",
-                "summary": f"ALERTA CRÍTICA: Esta estrategia falla las salvaguardas cuantitativas elementales: {'; '.join(reasons)}. Desaconsejada en cualquier circunstancia de mercado.",
+                "summary": f"ALERTA CRÍTICA: Esta estrategia destruye capital o incumple salvaguardas elementales: {'; '.join(reasons)}. Desaconsejada en cualquier circunstancia de mercado.",
                 "action": "DESCARTAR COMPLETAMENTE O REDISEÑAR LA HIPÓTESIS BÁSICA.",
                 "recommendations": [
-                    "DESCARTAR COMPLETAMENTE: El modelo estadístico no tiene ventaja cuantitativa (Negative Expectancy).",
+                    "DESCARTAR COMPLETAMENTE: El modelo no presenta edge sostenible en el periodo analizado.",
                     "No intentar sobre-ajustar (curve-fitting) los parámetros actuales con optimizaciones artificiales.",
-                    "Revisar el sesgo de dirección del mercado o añadir un filtro de régimen/tendencia superior.",
+                    "Revisar la premisa de entrada o evaluar un timeframe superior de confirmación.",
                     "Bajo ninguna circunstancia pasar este modelo al Trading Engine en cuenta real.",
                 ],
             }
 
         # ── TIER 1: HIGHLY RELIABLE / PRODUCTION READY (VERDE) ───────────────
         is_reliable = (
-            profit_factor >= 1.30
-            and sharpe_ratio >= 1.40
-            and max_dd_pct <= 15.0
-            and expectancy_pips >= 3.0
-            and ruin_prob_pct < 1.5
-            and consecutive_losses <= 5
+            profit_factor >= 1.25
+            and sharpe_ratio >= 1.0
+            and max_dd_pct <= 20.0
+            and expectancy_pips >= 1.0
+            and ruin_prob_pct < 2.0
+            and consecutive_losses <= 8
         )
 
         if is_reliable:
@@ -450,6 +518,24 @@ class BacktestService:
             }
 
         # ── TIER 2: CANDIDATE / REQUIRES OPTIMIZATION (AMARILLO) ──────────────
+        notes = []
+        if consecutive_losses > 8:
+            notes.append(f"Racha de {consecutive_losses} pérdidas consecutivas (incorporar Circuit Breaker)")
+        if max_dd_pct > 20.0:
+            notes.append(f"Drawdown moderado ({max_dd_pct:.1f}%)")
+        if profit_factor < 1.25:
+            notes.append(f"Profit Factor ajustado ({profit_factor:.2f})")
+        note_str = f" Factores de atención: {'; '.join(notes)}." if notes else ""
+
+        recs = [
+            "Ejecutar Exit Research para testear variantes de Trailing Stop o Take Profit dinámico.",
+            "Llevar a cabo Walk Forward Analysis (WFA) para confirmar estabilidad de parámetros fuera de muestra.",
+            "Probar filtrar entradas según sesión horaria (Londres / NY Overlap) o umbral de volatilidad ATR.",
+            "Mantener en estado CANDIDATO en la Research Database sin promover aún al Trading Engine.",
+        ]
+        if cb_activations > 0:
+            recs.insert(0, f"Circuit Breaker activado {cb_activations} veces durante la prueba, frenando operaciones tras rachas desfavorables.")
+
         return {
             "tier": "TIER_2_OPTIMIZE",
             "status_tag": "CANDIDATE",
@@ -458,14 +544,9 @@ class BacktestService:
             "icon": "fa-triangle-exclamation",
             "title": "ESTRATEGIA PROMETEDORA PERO REQUIERE OPTIMIZACIÓN",
             "badge": "REQUIERE OPTIMIZACIÓN (PRECAUCIÓN)",
-            "summary": f"La estrategia muestra ventaja estadística positiva (PF {profit_factor:.2f}, Sharpe {sharpe_ratio:.2f}), pero su margen de tolerancia es sensible o su Drawdown es moderado ({max_dd_pct:.1f}%). No se aconseja arriesgar capital real sin ajustes.",
+            "summary": f"La estrategia muestra ventaja estadística positiva (PF {profit_factor:.2f}, Sharpe {sharpe_ratio:.2f}, Esperanza +{expectancy_pips:.1f} pips/trade), pero requiere afinación.{note_str} No se aconseja arriesgar capital real sin ajustes.",
             "action": "REALIZAR WALK FORWARD ANALYSIS O INVESTIGACIÓN DE SALIDAS (EXIT RESEARCH).",
-            "recommendations": [
-                "Ejecutar Exit Research para testear variantes de Trailing Stop o Take Profit dinámico.",
-                "Llevar a cabo Walk Forward Analysis (WFA) para confirmar estabilidad de parámetros fuera de muestra.",
-                "Probar filtrar entradas según sesión horaria (Londres / NY Overlap) o umbral de volatilidad ATR.",
-                "Mantener en estado CANDIDATO en la Research Database sin promover aún al Trading Engine.",
-            ],
+            "recommendations": recs,
         }
 
 

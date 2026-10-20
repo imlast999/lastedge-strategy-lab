@@ -99,12 +99,32 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
 
             # ── Experiments & Research Store ──────────────────────────────────
             elif path in ("/api/research/experiments", "/api/experiments"):
+                import urllib.parse
                 from services.research_store import get_research_store
                 store = get_research_store()
-                exps, total = store.list_experiments(limit=50)
+                
+                parsed_url = urllib.parse.urlparse(self.path)
+                qs = urllib.parse.parse_qs(parsed_url.query)
+                exp_type = qs.get("type", [None])[0]
+                sym_filter = qs.get("symbol", [None])[0]
+                strat_filter = qs.get("strategy", [None])[0]
+                limit_val = int(qs.get("limit", [100])[0])
+
+                exps, total = store.list_experiments(
+                    symbol=sym_filter,
+                    strategy=strat_filter,
+                    experiment_type=exp_type,
+                    limit=limit_val
+                )
+
+                backtests = [e for e in exps if str(e.get("experiment_id", "")).startswith("bt_")]
+                research_list = [e for e in exps if not str(e.get("experiment_id", "")).startswith("bt_")]
+
                 self._send_json(200, {
                     "ok": True,
                     "experiments": exps,
+                    "backtests": backtests,
+                    "research": research_list,
                     "total": total
                 })
 
@@ -160,6 +180,11 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
                 sl_pips = float(body_data["sl_pips"]) if body_data.get("sl_pips") is not None else None
                 tp_pips = float(body_data["tp_pips"]) if body_data.get("tp_pips") is not None else None
 
+                t_start = datetime.now()
+                now_str = t_start.strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[{now_str}] [Strategy Lab] 🚀 INICIANDO BACKTEST: {symbol} | {strategy or 'default'} | {timeframe} | {bars} bars...")
+                sys.stdout.flush()
+
                 svc = get_backtest_service()
                 report = svc.run_backtest(
                     symbol=symbol,
@@ -169,6 +194,41 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
                     sl_pips=sl_pips,
                     tp_pips=tp_pips,
                 )
+                elapsed = (datetime.now() - t_start).total_seconds()
+                trades = report.get("signals", {}).get("total", 0) if report.get("ok") else 0
+                verdict = report.get("verdict", {}).get("badge", "ERR") if report.get("ok") else "FAILED"
+                print(f"[{now_str}] [Strategy Lab] 🏁 BACKTEST FINALIZADO: {symbol} | {strategy or 'default'} in {elapsed:.2f}s | trades={trades} | verdict={verdict}")
+                sys.stdout.flush()
+
+                self._send_json(200 if report.get("ok") else 400, report)
+
+            elif path in ("/api/research/run", "/api/research/research", "/api/research"):
+                from services.research_service import get_research_service
+                symbol = body_data.get("symbol", "EURUSD")
+                strategy = body_data.get("strategy")
+                timeframe = body_data.get("timeframe", "H1")
+                bars = int(body_data.get("bars", 10000))
+                n_sims = int(body_data.get("n_simulations", 2000))
+
+                t_start = datetime.now()
+                now_str = t_start.strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[{now_str}] [Strategy Lab] 🔬 INICIANDO RESEARCH: {symbol} | {strategy or 'default'} | {timeframe} | {bars} bars | {n_sims} MC...")
+                sys.stdout.flush()
+
+                svc = get_research_service()
+                report = svc.run_research(
+                    symbol=symbol,
+                    strategy_name=strategy,
+                    timeframe=timeframe,
+                    bars=bars,
+                    n_simulations=n_sims,
+                )
+                elapsed = (datetime.now() - t_start).total_seconds()
+                stability = report.get("stability_score", 0.0) if report.get("ok") else 0.0
+                rating = report.get("stability_rating", "ERR") if report.get("ok") else "FAILED"
+                print(f"[{now_str}] [Strategy Lab] 🏁 RESEARCH FINALIZADO: {symbol} in {elapsed:.2f}s | Stability={stability} | Rating={rating}")
+                sys.stdout.flush()
+
                 self._send_json(200 if report.get("ok") else 400, report)
 
             else:
@@ -179,7 +239,10 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"ok": False, "error": str(e)})
 
     def log_message(self, format, *args):
-        pass
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        msg = format % args
+        print(f"[{now_str}] [Strategy Lab] {msg}")
+        sys.stdout.flush()
 
 
 class ResearchAPIServer:
@@ -239,10 +302,32 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s")
     port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.getenv("RESEARCH_API_PORT", "8082"))
     srv = start_research_api_server(port=port)
-    print(f"Strategy Lab API Server running on port {port}. Press Ctrl+C to stop.")
+    print("=" * 65)
+    print(f"🔬 LastEdge Strategy Lab — REST API Server (: {port})")
+    print("=" * 65)
+    print(f"📡 API escuchando en http://localhost:{port}")
+    print("   Endpoints de Investigación Cuantitativa:")
+    print(f"   • http://localhost:{port}/api/health")
+    print(f"   • http://localhost:{port}/api/research/status")
+    print(f"   • http://localhost:{port}/api/research/strategies")
+    print(f"   • http://localhost:{port}/api/research/experiments")
+    print(f"   • http://localhost:{port}/api/research/backtest (POST)")
+    print("=" * 65)
+    print("Presiona Ctrl+C para detener el servicio.\n")
+    sys.stdout.flush()
+
     try:
         import time
+        counter = 0
         while True:
             time.sleep(1)
+            counter += 1
+            if counter % 15 == 0:
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[{now_str}] [Strategy Lab] 💓 Heartbeat OK | API :8082 activa | Research Store listo")
+                sys.stdout.flush()
     except KeyboardInterrupt:
+        print("\n🛑 Deteniendo Strategy Lab API...")
+        sys.stdout.flush()
         srv.stop()
+

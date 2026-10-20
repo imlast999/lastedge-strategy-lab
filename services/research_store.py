@@ -330,6 +330,7 @@ class ResearchStore:
         symbol: Optional[str] = None,
         strategy: Optional[str] = None,
         decision_status: Optional[str] = None,
+        experiment_type: Optional[str] = None,
         query: Optional[str] = None,
         tag: Optional[str] = None,
         min_pf: Optional[float] = None,
@@ -356,6 +357,13 @@ class ResearchStore:
         if decision_status:
             conditions.append("decision_status = ?")
             params.append(decision_status.upper())
+
+        if experiment_type:
+            et = str(experiment_type).lower().strip()
+            if et == "backtest":
+                conditions.append("experiment_id LIKE 'bt_%'")
+            elif et in ("research", "wfa", "exit_research"):
+                conditions.append("experiment_id NOT LIKE 'bt_%'")
 
         if min_pf is not None:
             conditions.append("best_profit_factor >= ?")

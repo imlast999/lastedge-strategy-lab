@@ -247,9 +247,17 @@ class WalkForwardTester:
                     logger.error(f"[WF] Error descargando datos de MT5: {e}")
                     return report
 
-        if df_full is None or len(df_full) < self.lookback + self.train_bars + self.test_bars:
+        if df_full is None or len(df_full) < self.lookback + 50:
             logger.error(f"[WF] Datos insuficientes: {len(df_full) if df_full is not None else 0} velas")
             return report
+
+        # Auto-ajustar train/test si las velas disponibles son menores que los defaults
+        avail_bars = len(df_full) - self.lookback
+        if avail_bars < (self.train_bars + self.test_bars):
+            self.train_bars = max(100, int(avail_bars * 0.60))
+            self.test_bars = max(50, int(avail_bars * 0.25))
+            self.step_bars = max(50, int(avail_bars * 0.25))
+            logger.info(f"[WF] Auto-ajustadas ventanas WFA: train={self.train_bars}, test={self.test_bars}, step={self.step_bars}")
 
         df_full = df_full.reset_index(drop=True)
         n = len(df_full)
@@ -257,7 +265,7 @@ class WalkForwardTester:
 
         # ── 2. Generar ventanas ───────────────────────────────────────────────
         window_idx = 0
-        start = 0  # inicio del bloque TRAIN (sin lookback)
+        start = self.lookback  # inicio del bloque TRAIN (alineado al lookback)
 
         while True:
             train_start = start
@@ -265,11 +273,7 @@ class WalkForwardTester:
             test_start  = train_end
             test_end    = test_start + self.test_bars
 
-            # Necesitamos lookback extra antes de cada ventana
-            if train_start < self.lookback:
-                start += self.step_bars
-                continue
-            if test_end + self.lookback > n:
+            if test_end > n:
                 break  # no hay suficientes datos para esta ventana
 
             window_idx += 1

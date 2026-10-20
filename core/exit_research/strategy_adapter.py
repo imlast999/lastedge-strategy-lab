@@ -32,14 +32,23 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# ── Mapa símbolo → módulo + clase ────────────────────────────────────────────
+# ── Mapa símbolo / estrategia → módulo + clase ─────────────────────────────
 # Añadir aquí cuando se registren nuevas estrategias.
 _STRATEGY_REGISTRY: Dict[str, tuple[str, str]] = {
-    # symbol_key   : (module_path,                 class_name)
-    "EURUSD"       : ("strategies.eurusd",          "EURUSDPartialStrategy"),
-    "XAUUSD"       : ("strategies.xauusd_partial",  "XAUUSDPartialStrategy"),
-    "BTCEUR"       : ("strategies.btceur_partial", "BTCEURPartialStrategy"),
-    "XAUUSD_GSRS"  : ("strategies.experimental.gold_newstrat", "XAUUSDGSRSStrategy"),
+    # symbol_key / strategy_key : (module_path,                 class_name)
+    "EURUSD"                    : ("strategies.eurusd",          "EURUSDPartialStrategy"),
+    "EURUSD_PARTIAL"            : ("strategies.eurusd",          "EURUSDPartialStrategy"),
+    "EURUSD_SIMPLE"             : ("strategies.eurusd",          "EURUSDStrategy"),
+    "XAUUSD"                    : ("strategies.xauusd_partial",  "XAUUSDPartialStrategy"),
+    "XAUUSD_PARTIAL"            : ("strategies.xauusd_partial",  "XAUUSDPartialStrategy"),
+    "XAUUSD_SIMPLE"             : ("strategies.xauusd",          "XAUUSDStrategy"),
+    "BTCEUR"                    : ("strategies.btceur_partial",  "BTCEURPartialStrategy"),
+    "BTCEUR_PARTIAL"            : ("strategies.btceur_partial",  "BTCEURPartialStrategy"),
+    "BTCEUR_SIMPLE"             : ("strategies.btceur_new",      "BTCEURStrategy"),
+    "BTC_TREND_PULLBACK_V1"     : ("strategies.btc_trend_pullback_v1", "BTCTrendPullbackV1Strategy"),
+    "BTCEUR_REGIME_MOMENTUM"    : ("strategies.btceur_regime_momentum", "BTCEURRegimeMomentumStrategy"),
+    "BTCEUR_WEEKLY_BREAKOUT"    : ("strategies.btceur_weekly_breakout", "BTCEURWeeklyBreakoutStrategy"),
+    "XAUUSD_GSRS"               : ("strategies.experimental.gold_newstrat", "XAUUSDGSRSStrategy"),
 }
 
 
@@ -132,29 +141,22 @@ class StrategyAdapter:
 
 # ── Factory ───────────────────────────────────────────────────────────────────
 
-def adapter_for_symbol(
-    symbol: str,
+def adapter_for_strategy(
+    strategy_name: str,
+    symbol: Optional[str] = None,
     config: Optional[Dict] = None,
 ) -> StrategyAdapter:
     """
-    Crea un StrategyAdapter para el símbolo dado usando el registro interno.
-
-    Args:
-        symbol: 'EURUSD', 'XAUUSD', 'BTCEUR' (case-insensitive).
-        config: Config de detección. None = usar default de la estrategia.
-
-    Returns:
-        StrategyAdapter listo para usar.
-
-    Raises:
-        ValueError: Si el símbolo no está en el registro.
-        ImportError / AttributeError: Si el módulo o clase no existen.
+    Crea un StrategyAdapter para la estrategia o símbolo dado usando el registro interno.
     """
-    key = symbol.upper()
+    key = strategy_name.upper().strip()
+    if key not in _STRATEGY_REGISTRY and symbol:
+        key = symbol.upper().strip()
+
     if key not in _STRATEGY_REGISTRY:
-        registered = ", ".join(_STRATEGY_REGISTRY.keys())
+        registered = ", ".join(sorted(_STRATEGY_REGISTRY.keys()))
         raise ValueError(
-            f"Símbolo '{symbol}' no registrado. Disponibles: {registered}"
+            f"Estrategia o símbolo '{strategy_name}' no registrado. Disponibles: {registered}"
         )
 
     module_path, class_name = _STRATEGY_REGISTRY[key]
@@ -163,7 +165,7 @@ def adapter_for_symbol(
         module = importlib.import_module(module_path)
     except ImportError as e:
         raise ImportError(
-            f"No se pudo importar '{module_path}' para '{symbol}': {e}"
+            f"No se pudo importar '{module_path}' para '{key}': {e}"
         ) from e
 
     try:
@@ -174,3 +176,14 @@ def adapter_for_symbol(
         ) from e
 
     return StrategyAdapter(strategy_cls(), config=config)
+
+
+def adapter_for_symbol(
+    symbol: str,
+    config: Optional[Dict] = None,
+) -> StrategyAdapter:
+    """
+    Crea un StrategyAdapter para el símbolo dado usando el registro interno.
+    """
+    return adapter_for_strategy(strategy_name=symbol, symbol=symbol, config=config)
+

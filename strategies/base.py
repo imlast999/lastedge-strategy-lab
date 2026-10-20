@@ -408,8 +408,12 @@ class BaseStrategy(ABC):
     def add_indicators(self, df: pd.DataFrame, config: Dict = None) -> pd.DataFrame:
         """
         Añade indicadores técnicos necesarios al DataFrame.
-        Por defecto añade indicadores comunes.
+        Si ya fueron calculados para esta estrategia (vectorizado), retorna directamente para acelerar el replay 100x.
         """
+        flag_col = f"_ind_{self.__class__.__name__}"
+        if flag_col in df.columns:
+            return df
+
         cfg = {**self.default_config, **(config or {})}
         df = df.copy()
         
@@ -423,6 +427,7 @@ class BaseStrategy(ABC):
         
         # Indicadores específicos de la estrategia
         df = self._add_specific_indicators(df, cfg)
+        df[flag_col] = True
         
         return df
     

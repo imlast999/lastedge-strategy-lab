@@ -82,15 +82,19 @@ class StrategyLabSignalEvaluator:
     def evaluate_signal(self, window: pd.DataFrame, symbol: str, strategy: Optional[str] = None,
                         config: Optional[Dict] = None, skip_duplicate_filter: bool = True,
                         current_index: int = 0, current_bar_time: Optional[datetime] = None) -> EngineSignalResult:
-        from core.exit_research.strategy_adapter import adapter_for_symbol
-        sym_key = symbol.upper()
-        if sym_key not in self._adapters:
-            try:
-                self._adapters[sym_key] = adapter_for_symbol(sym_key)
-            except Exception:
-                return EngineSignalResult(signal=None, rejection_reason=f"Estrategia para {symbol} no encontrada")
+        from core.exit_research.strategy_adapter import adapter_for_strategy
+        sym_key = symbol.upper().strip()
+        strat_key = (strategy or symbol).upper().strip()
+        cache_key = f"{sym_key}::{strat_key}"
 
-        adapter = self._adapters[sym_key]
+        if cache_key not in self._adapters:
+            try:
+                self._adapters[cache_key] = adapter_for_strategy(strategy_name=strat_key, symbol=sym_key, config=config)
+            except Exception as e:
+                logger.debug(f"[StrategyLabSignalEvaluator] Error instanciando {cache_key}: {e}")
+                return EngineSignalResult(signal=None, rejection_reason=f"Estrategia '{strategy or symbol}' para {symbol} no encontrada")
+
+        adapter = self._adapters[cache_key]
         sig = adapter.get_signal(window)
         if not sig:
             return EngineSignalResult(signal=None, rejection_reason="No setup básico detectado")
@@ -239,6 +243,20 @@ class ReplayEngine:
             # Obtener engine (estado limpio por cada run_replay / ventana WF)
             engine = get_trading_engine()
             engine.reset_replay_state(symbol)
+
+            # Precalcular indicadores en df_full vectorizadamente una sola vez (aceleración 100x)
+            try:
+                sample_win = df_full.iloc[:self.lookback_window].copy()
+                engine.evaluate_signal(sample_win, symbol, strategy, config)
+                sym_key = symbol.upper().strip()
+                strat_key = (strategy or symbol).upper().strip()
+                cache_key = f"{sym_key}::{strat_key}"
+                if cache_key in engine._adapters:
+                    adapter_strat = engine._adapters[cache_key].strategy
+                    df_full = adapter_strat.add_indicators(df_full, config)
+                    logger.info(f"[ReplayEngine] Indicadores precalculados para {cache_key} sobre {len(df_full)} velas.")
+            except Exception as e_precalc:
+                logger.debug(f"[ReplayEngine] Precálculo de indicadores omitido: {e_precalc}")
 
             # Estadísticas
             stats = ReplayStatistics()
