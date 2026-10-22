@@ -15,6 +15,12 @@
 
 ---
 
+> [!NOTE]
+> **Part of the [LastEdge](https://github.com/imlast999/LastEdge) Ecosystem**  
+> This repository is the quantitative research and strategy optimization laboratory of the **LastEdge** platform. While it operates 100% offline and standalone across Windows, Linux, and macOS, **we strongly recommend running the complete LastEdge suite** via the main orchestrator repository ([`imlast999/LastEdge`](https://github.com/imlast999/LastEdge)) using its automated clone script (`setup.bat` / `clone_repos.bat`) to enable seamless promotion of validated strategies directly into live MT5 execution and real-time dashboard telemetry.
+
+---
+
 ## 1. Overview
 
 **LastEdge Strategy Lab** is the scientific and quantitative research engine of the LastEdge platform. It empowers quantitative researchers to design, backtest, optimize, stress-test, and promote algorithmic trading strategies using empirical mathematical models.
@@ -39,6 +45,7 @@ LastEdge is designed as a tri-system decoupled architecture. Strategy Lab operat
 
 | Repository | Role | Integration Point |
 | :--- | :--- | :--- |
+| 🌐 [**LastEdge (Main Suite)**](https://github.com/imlast999/LastEdge) | Ecosystem Orchestrator & CLI | **Unified Workspace**: Automated setup script (`setup.bat` / `clone_repos.bat`) to synchronize and run the complete three-repository trading suite. |
 | ⚡ [**LastEdge Trading Engine**](https://github.com/imlast999/lastedge-trading-engine) | MT5 Execution & Risk Engine v2 | **Candidate Ingestion**: Once strategies pass quantitative validation gates (WFA WES $\ge 0.60$, Monte Carlo Ruin $\le 5\%$), Strategy Lab exports verified packages (`.py` + `.json` sidecars with `code_sha256` and `config_hash`) directly into Trading Engine's `strategies/` directory for live execution. |
 | 📱 [**LastEdge App**](https://github.com/imlast999/lastedge-app) | Web Dashboard, Mobile & Bots | **Research Telemetry & Control**: LastEdge App queries Strategy Lab's REST API (`http://localhost:8082`) to display backtest results, active research candidates, and trigger pipeline runs remotely. |
 
