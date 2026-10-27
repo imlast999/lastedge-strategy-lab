@@ -24,6 +24,14 @@ STRATEGY_CATALOG: Dict[str, Dict[str, Any]] = {
                 "allowed_timeframes": ["H1"],
                 "default_timeframe": "H1",
                 "lookback_min": 200,
+            },
+            {
+                "id": "eurusd_flow",
+                "name": "EURUSD Flow Strategy (v1.0)",
+                "description": "Institutional flow, liquidity sweeps and EMA pullback rejection",
+                "allowed_timeframes": ["H1"],
+                "default_timeframe": "H1",
+                "lookback_min": 200,
             }
         ]
     },
@@ -46,6 +54,14 @@ STRATEGY_CATALOG: Dict[str, Dict[str, Any]] = {
                 "id": "xauusd_simple",
                 "name": "XAUUSD Simple Baseline",
                 "description": "Gold trend baseline with EMA200 trend filter and RSI momentum",
+                "allowed_timeframes": ["H1"],
+                "default_timeframe": "H1",
+                "lookback_min": 200,
+            },
+            {
+                "id": "xauusd_surge",
+                "name": "XAUUSD Surge Strategy (v1.0)",
+                "description": "Volatility squeeze breakout & Donchian trend expansion",
                 "allowed_timeframes": ["H1"],
                 "default_timeframe": "H1",
                 "lookback_min": 200,
@@ -98,6 +114,14 @@ STRATEGY_CATALOG: Dict[str, Dict[str, Any]] = {
                 "allowed_timeframes": ["H1"],
                 "default_timeframe": "H1",
                 "lookback_min": 900,
+            },
+            {
+                "id": "btceur_trend_surge",
+                "name": "BTCEUR Trend Surge (v1.0)",
+                "description": "H4 macro regime filter with H1 EMA20 touch & ATR expansion",
+                "allowed_timeframes": ["H1"],
+                "default_timeframe": "H1",
+                "lookback_min": 850,
             }
         ]
     }

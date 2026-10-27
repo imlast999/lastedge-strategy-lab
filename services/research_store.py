@@ -297,11 +297,12 @@ class ResearchStore:
         set_clauses.append("updated_at = ?")
         params.append(datetime.now(timezone.utc).isoformat())
         params.append(exp_id)
+        params.append(exp_id)
 
         try:
             with self._get_conn() as conn:
                 cur = conn.execute(
-                    f"UPDATE research_experiments SET {', '.join(set_clauses)} WHERE experiment_id = ?",
+                    f"UPDATE research_experiments SET {', '.join(set_clauses)} WHERE experiment_id = ? OR id = ?",
                     params
                 )
                 conn.commit()
@@ -315,8 +316,8 @@ class ResearchStore:
         try:
             with self._get_conn() as conn:
                 row = conn.execute(
-                    "SELECT * FROM research_experiments WHERE experiment_id = ?",
-                    (exp_id,)
+                    "SELECT * FROM research_experiments WHERE experiment_id = ? OR id = ?",
+                    (exp_id, exp_id)
                 ).fetchone()
                 if not row:
                     return None

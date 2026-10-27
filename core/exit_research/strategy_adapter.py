@@ -48,6 +48,9 @@ _STRATEGY_REGISTRY: Dict[str, tuple[str, str]] = {
     "BTC_TREND_PULLBACK_V1"     : ("strategies.btc_trend_pullback_v1", "BTCTrendPullbackV1Strategy"),
     "BTCEUR_REGIME_MOMENTUM"    : ("strategies.btceur_regime_momentum", "BTCEURRegimeMomentumStrategy"),
     "BTCEUR_WEEKLY_BREAKOUT"    : ("strategies.btceur_weekly_breakout", "BTCEURWeeklyBreakoutStrategy"),
+    "EURUSD_FLOW"               : ("strategies.eurusd_flow", "EURUSDFlowStrategy"),
+    "XAUUSD_SURGE"              : ("strategies.xauusd_surge", "XAUUSDSurgeStrategy"),
+    "BTCEUR_TREND_SURGE"        : ("strategies.btceur_trend_surge", "BTCEURTrendSurgeStrategy"),
     "XAUUSD_GSRS"               : ("strategies.experimental.gold_newstrat", "XAUUSDGSRSStrategy"),
 }
 

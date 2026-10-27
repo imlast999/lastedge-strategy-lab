@@ -9,10 +9,27 @@ telemetry, and validated strategy candidates without importing internal Python m
 
 from __future__ import annotations
 
-import json
-import logging
 import os
 import sys
+from pathlib import Path
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+# Ensure Strategy Lab root is at the front of sys.path, and services directory doesn't shadow stdlib
+_LAB_ROOT = str(Path(__file__).resolve().parent.parent)
+_SERVICES_DIR = str(Path(__file__).resolve().parent)
+if sys.path and sys.path[0] == _SERVICES_DIR:
+    sys.path.pop(0)
+if _LAB_ROOT not in sys.path:
+    sys.path.insert(0, _LAB_ROOT)
+
+import json
+import logging
 import threading
 from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -33,11 +50,14 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
             body = json.dumps(data, indent=2, default=str).encode("utf-8")
             self.send_response(status_code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
             self.end_headers()
             self.wfile.write(body)
+            self.wfile.flush()
         except (ConnectionAbortedError, BrokenPipeError, OSError):
             pass
         except Exception as e:
@@ -143,12 +163,34 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
                 from core.strategy_catalog import get_strategy_catalog
                 self._send_json(200, get_strategy_catalog())
 
+            # ── Single Experiment Detail or Reopen ────────────────────────────
+            elif path.startswith("/api/research/experiments/") or path.startswith("/api/experiments/"):
+                parts = path.split("/")
+                exp_id = parts[4] if path.startswith("/api/research/experiments/") else parts[3]
+                from services.research_store import get_research_store
+                store = get_research_store()
+                if path.endswith("/reopen"):
+                    payload = store.get_reopen_payload(exp_id)
+                    if payload:
+                        self._send_json(200, {"ok": True, "reproducible_payload": payload})
+                    else:
+                        self._send_json(404, {"ok": False, "error": f"Experiment '{exp_id}' not found."})
+                else:
+                    exp = store.get_experiment(exp_id)
+                    if exp:
+                        self._send_json(200, {"ok": True, "experiment": exp})
+                    else:
+                        self._send_json(404, {"ok": False, "error": f"Experiment '{exp_id}' not found."})
+
             else:
                 self._send_json(404, {"ok": False, "error": f"Endpoint '{self.path}' not found on Strategy Lab API."})
 
         except Exception as e:
             logger.error("API error handling GET %s: %s", self.path, e)
             self._send_json(500, {"ok": False, "error": str(e)})
+
+    def do_PATCH(self):
+        self.do_POST()
 
     def do_POST(self):
         path = self.path.split("?")[0].rstrip("/")
@@ -230,6 +272,14 @@ class ResearchAPIHandler(BaseHTTPRequestHandler):
                 sys.stdout.flush()
 
                 self._send_json(200 if report.get("ok") else 400, report)
+
+            elif path.startswith("/api/research/experiments/") or path.startswith("/api/experiments/"):
+                parts = path.split("/")
+                exp_id = parts[4] if path.startswith("/api/research/experiments/") else parts[3]
+                from services.research_store import get_research_store
+                store = get_research_store()
+                ok = store.update_experiment(exp_id, body_data)
+                self._send_json(200 if ok else 400, {"ok": ok, "experiment_id": exp_id})
 
             else:
                 self._send_json(404, {"ok": False, "error": f"POST endpoint '{self.path}' not found."})
