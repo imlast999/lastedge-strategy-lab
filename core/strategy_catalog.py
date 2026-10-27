@@ -175,6 +175,7 @@ def discover_dynamic_strategies() -> None:
     pkg_dir = Path(__file__).resolve().parent.parent / "strategies"
     search_dirs = [
         pkg_dir,
+        pkg_dir / "public",
         pkg_dir / "vault",
         pkg_dir / "private",
         pkg_dir / "experimental",
