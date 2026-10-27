@@ -37,6 +37,7 @@
 - **Monte Carlo Engine**: Statistical resimulation for maximum drawdown and risk-of-ruin probability at 95% and 99% confidence levels (`core/montecarlo.py`).
 - **Exit Research Framework**: Independent exit rule optimization (partial exits, ATR trailing, dynamic breakeven).
 - **Candidate Promotion Pipeline**: Automated candidate registration, configuration freezing, SHA-256 code hashing, and cryptographic packaging for `Trading Engine` (`services/promotion.py`).
+- **Vault Alpha Consolidation**: Multi-pillar audit suite verifying private proprietary strategies against 10,000-candle regimes, weeding out unviable setups to focus computational resources on institutional-grade alpha.
 - **Typed Signal Contract**: Canonical implementation of [`SignalIntent`](strategies/base.py) with bit-for-bit parity with Trading Engine.
 - **Research REST API**: Local HTTP server on port `8082` for research experiments and candidate listing.
 - **Platform Independence**: Runs in offline mode on Windows, macOS, and Linux without requiring MetaTrader 5 installed.
