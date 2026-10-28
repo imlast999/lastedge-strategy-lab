@@ -53,7 +53,7 @@ Strategy Lab simulates execution using the exact same deterministic scoring matr
 | :--- | :---: | :--- | :--- |
 | **`VERY_HIGH`** | **`0.85 – 1.00`** | **Institutional Conviction** | Automated live execution in MT5 with immediate IOC fill. |
 | **`HIGH`** | **`0.67 – 0.84`** | **Automated Production** | Automated live execution in MT5 (calibrated $\ge 0.67$ gate). |
-| **`MEDIUM`** | **`0.60 – 0.66`** | **Discretionary Validation** | Dispatched to Web Dashboard & Mobile App for 1-click confirmation. |
+| **`MEDIUM`** | **`0.60 – 0.66`** | **Discretionary Validation** | Dispatched to Web Dashboard & Mobile App in Hybrid Mode; auto-suppressed in 100% Autonomous Mode. |
 | **`LOW`** | **`< 0.60`** | **Pre-Filter Suppression** | Completely suppressed. Discarded as market noise to protect capital. |
 
 ---
