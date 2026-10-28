@@ -6,10 +6,10 @@
 
 [![Strategy Lab CI](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/Tests-54%2F54%20Passed-success)](https://github.com/imlast999/lastedge-strategy-lab)
-[![Validation](https://img.shields.io/badge/Validation-6%20Pillars%20Institutional%20Suite-purple)](https://github.com/imlast999/lastedge-strategy-lab)
+[![Pillars](https://img.shields.io/badge/Quantitative%20Pillars-6%20Active-purple)](https://github.com/imlast999/lastedge-strategy-lab)
 
 > **Repository:** [`imlast999/lastedge-strategy-lab`](https://github.com/imlast999/lastedge-strategy-lab)  
-> **Role:** Quantitative Research Laboratory, Historical Data Pipeline, WFA & Strategy Promotion  
+> **Role:** Quantitative Research, Backtesting, Walk-Forward Analysis, Monte Carlo & Strategy Promotion  
 > **Status:** Production Ready  
 > **Tests:** 54 / 54 Passed (100% Green)  
 
@@ -19,18 +19,19 @@
 
 > [!NOTE]
 > **Part of the [LastEdge](https://github.com/imlast999/LastEdge) Ecosystem**  
-> This repository is the quantitative research and strategy optimization laboratory of the **LastEdge** platform. While it operates 100% offline and standalone across Windows, Linux, and macOS, **we strongly recommend running the complete LastEdge suite** via the main orchestrator repository ([`imlast999/LastEdge`](https://github.com/imlast999/LastEdge)) using its automated clone script (`setup.bat` / `clone_repos.bat`) to enable seamless promotion of validated strategies directly into live MT5 execution and real-time dashboard telemetry.
+> This repository is the research and strategy engineering core of the **LastEdge** quantitative trading framework. While it can run independently for offline research, **we strongly recommend running the complete LastEdge suite** via the main orchestrator repository ([`imlast999/LastEdge`](https://github.com/imlast999/LastEdge)) using its automated clone script (`setup.bat` / `clone_repos.bat`) to enable synchronized strategy promotion directly into the live Trading Engine.
 
 ---
 
 ## 1. Overview
 
-**LastEdge Strategy Lab** is the scientific and quantitative research engine of the LastEdge platform. It empowers quantitative researchers to design, backtest, optimize, stress-test, and promote algorithmic trading strategies using empirical mathematical models.
+**LastEdge Strategy Lab** is the scientific research, simulation, and validation laboratory for algorithmic trading strategies. It enforces an institutional 6-gate quantitative framework ensuring no model reaches live trading without passing rigorous statistical stress testing.
 
 ### Key Capabilities:
 - **The 6 Quantitative Pillars Suite**: Institutional-grade validation (1,000 Monte Carlo permutations, Walk-Forward Analysis WFE $\ge 60\%$, Deflated Sharpe Ratio against overfitting, Mathematical Payoff, Market Regimes Stress Test, and Cryptographic Promotion).
 - **Dynamic Strategy Discovery**: Automatically scans `strategies/`, `strategies/vault/`, and `strategies/private/` to discover and register new strategy files on the fly.
 - **Unified Research Pipeline CLI**: Single-command orchestrator for Backtesting, Exit Research, WFA, Monte Carlo, and Promotion (`run_pipeline.py`).
+- **Standardized Execution Matrix**: Aligned scoring thresholds (`LOW < 0.60`, `MEDIUM 0.60 - 0.66`, `HIGH 0.67 - 0.84`, `VERY_HIGH >= 0.85`) ensuring simulated performance faithfully reflects live MT5 execution gates.
 - **Historical Data Store**: Offline Parquet & CSV dataset loading and validation (`services/data_loader.py`).
 - **Realistic Backtesting**: Tick and bar simulations modeling spread, commissions, and slippage (`core/trade_costs.py`).
 - **Walk Forward Analysis (WFA)**: Multi-window rolling optimization with out-of-sample stability scoring (`core/walkforward.py`).
@@ -44,7 +45,20 @@
 
 ---
 
-## 2. Ecosystem & Sister Repositories
+## 2. Signal Confidence & Execution Tiers
+
+Strategy Lab simulates execution using the exact same deterministic scoring matrix enforced by the Trading Engine:
+
+| Tier | Confluence Score | Simulation / Live Role | Execution Outcome |
+| :--- | :---: | :--- | :--- |
+| **`VERY_HIGH`** | **`0.85 – 1.00`** | **Institutional Conviction** | Automated live execution in MT5 with immediate IOC fill. |
+| **`HIGH`** | **`0.67 – 0.84`** | **Automated Production** | Automated live execution in MT5 (calibrated $\ge 0.67$ gate). |
+| **`MEDIUM`** | **`0.60 – 0.66`** | **Discretionary Validation** | Dispatched to Web Dashboard & Mobile App for 1-click confirmation. |
+| **`LOW`** | **`< 0.60`** | **Pre-Filter Suppression** | Completely suppressed. Discarded as market noise to protect capital. |
+
+---
+
+## 3. Ecosystem & Sister Repositories
 
 LastEdge is designed as a tri-system decoupled architecture. Strategy Lab operates autonomously in research and data processing while providing verified trading algorithms to the ecosystem:
 
@@ -54,17 +68,17 @@ LastEdge is designed as a tri-system decoupled architecture. Strategy Lab operat
 | ⚡ [**LastEdge Trading Engine**](https://github.com/imlast999/lastedge-trading-engine) | MT5 Execution & Risk Engine v2 | **Candidate Ingestion**: Once strategies pass quantitative validation gates (WFA WES $\ge 0.60$, Monte Carlo Ruin $\le 1\%$), Strategy Lab exports verified packages (`.py` + `.json` sidecars with `code_sha256` and `config_hash`) directly into Trading Engine's `strategies/` directory for live execution. |
 | 📱 [**LastEdge App**](https://github.com/imlast999/lastedge-app) | Web Dashboard, Mobile & Bots | **Research Telemetry & Control**: LastEdge App queries Strategy Lab's REST API (`http://localhost:8082`) to display backtest results, active research candidates, and trigger pipeline runs remotely from mobile or web. |
 
-Both Strategy Lab and the Trading Engine adhere strictly to the shared [`strategies/base.py`](strategies/base.py) contract with typed `SignalIntent` specifications.
-
 ---
 
-## 3. Architecture & Directory Structure
+## 4. Architecture & Directory Structure
 
 ```text
 LastEdge Strategy Lab/
 ├── run_pipeline.py                 # Unified end-to-end research orchestrator CLI
+├── rules_config.json               # Baseline candidate parameters and confidence thresholds
 ├── core/
 │   ├── strategy_catalog.py         # Dynamic Strategy Catalog & On-the-Fly Discovery
+│   ├── scoring.py                  # Flexible scoring & confirmation evaluation
 │   ├── replay_engine.py            # Candle replay backtesting engine
 │   ├── walkforward.py              # Walk-Forward Analysis rolling window optimizer
 │   ├── montecarlo.py               # 1,000 permutations risk-of-ruin engine
@@ -85,7 +99,7 @@ LastEdge Strategy Lab/
 
 ---
 
-## 4. Running Tests & Continuous Integration
+## 5. Running Tests & Continuous Integration
 
 ```bash
 # Run all Strategy Lab tests locally
@@ -99,7 +113,7 @@ Current test suite status: **54 / 54 passed (100% Green)**.
 
 ---
 
-## 5. Documentation Index
+## 6. Documentation Index
 
 For in-depth mathematical documentation, refer to [`docs/`](docs/):
 
