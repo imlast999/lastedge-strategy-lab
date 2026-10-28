@@ -280,6 +280,7 @@
         0.03,
         0.01
       ]
-    }
+    },
+    "autonomous_mode": true
   }
 }
