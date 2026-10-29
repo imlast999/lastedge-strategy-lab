@@ -150,44 +150,59 @@ def adapter_for_strategy(
     config: Optional[Dict] = None,
 ) -> StrategyAdapter:
     """
-    Crea un StrategyAdapter para la estrategia o símbolo dado usando el registro interno.
+    Crea un StrategyAdapter para la estrategia o simbolo dado usando el registro interno.
+    Prioriza primero la coincidencia exacta por nombre de estrategia (estatica o Vault),
+    y solo recurre al simbolo generico como ultimo recurso.
     """
     key = strategy_name.upper().strip()
-    if key not in _STRATEGY_REGISTRY and symbol:
-        key = symbol.upper().strip()
 
-    if key not in _STRATEGY_REGISTRY:
-        # Fallback dinámico a estrategias del Vault o promovidas en strategies.STRATEGY_REGISTRY
+    # 1. Coincidencia estatica directa por nombre de estrategia
+    if key in _STRATEGY_REGISTRY:
+        module_path, class_name = _STRATEGY_REGISTRY[key]
+        try:
+            module = importlib.import_module(module_path)
+            strategy_cls = getattr(module, class_name)
+            return StrategyAdapter(strategy_cls(), config=config)
+        except Exception as e:
+            logger.debug("[StrategyAdapter] Fallo importando %s: %s", module_path, e)
+
+    # 2. Descubrimiento dinamico en Vault o paquetes promovidos (STRATEGY_REGISTRY)
+    try:
+        from strategies import STRATEGY_REGISTRY as GLOBAL_REG
+        candidate_cls = (
+            GLOBAL_REG.get(key)
+            or GLOBAL_REG.get(strategy_name.lower())
+            or GLOBAL_REG.get(strategy_name)
+        )
+        if candidate_cls is not None:
+            return StrategyAdapter(candidate_cls(), config=config)
+    except Exception as e:
+        logger.debug("[StrategyAdapter] Fallback dinamico de Vault fallo: %s", e)
+
+    # 3. Fallback generico por simbolo (ej: 'XAUUSD', 'EURUSD')
+    if symbol:
+        sym_key = symbol.upper().strip()
+        if sym_key in _STRATEGY_REGISTRY:
+            module_path, class_name = _STRATEGY_REGISTRY[sym_key]
+            try:
+                module = importlib.import_module(module_path)
+                strategy_cls = getattr(module, class_name)
+                return StrategyAdapter(strategy_cls(), config=config)
+            except Exception as e:
+                logger.debug("[StrategyAdapter] Fallo importando fallback %s: %s", module_path, e)
+
         try:
             from strategies import STRATEGY_REGISTRY as GLOBAL_REG
-            candidate_cls = GLOBAL_REG.get(key) or GLOBAL_REG.get(strategy_name.lower())
+            candidate_cls = GLOBAL_REG.get(sym_key)
             if candidate_cls is not None:
                 return StrategyAdapter(candidate_cls(), config=config)
         except Exception:
             pass
 
-        registered = ", ".join(sorted(_STRATEGY_REGISTRY.keys()))
-        raise ValueError(
-            f"Estrategia o símbolo '{strategy_name}' no registrado. Disponibles: {registered}"
-        )
-
-    module_path, class_name = _STRATEGY_REGISTRY[key]
-
-    try:
-        module = importlib.import_module(module_path)
-    except ImportError as e:
-        raise ImportError(
-            f"No se pudo importar '{module_path}' para '{key}': {e}"
-        ) from e
-
-    try:
-        strategy_cls = getattr(module, class_name)
-    except AttributeError as e:
-        raise AttributeError(
-            f"Clase '{class_name}' no encontrada en '{module_path}': {e}"
-        ) from e
-
-    return StrategyAdapter(strategy_cls(), config=config)
+    registered = ", ".join(sorted(_STRATEGY_REGISTRY.keys()))
+    raise ValueError(
+        f"Estrategia o simbolo '{strategy_name}' no registrado. Disponibles: {registered}"
+    )
 
 
 def adapter_for_symbol(
