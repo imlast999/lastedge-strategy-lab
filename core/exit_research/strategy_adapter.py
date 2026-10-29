@@ -52,6 +52,7 @@ _STRATEGY_REGISTRY: Dict[str, tuple[str, str]] = {
     "XAUUSD_SURGE"              : ("strategies.xauusd_surge", "XAUUSDSurgeStrategy"),
     "BTCEUR_TREND_SURGE"        : ("strategies.btceur_trend_surge", "BTCEURTrendSurgeStrategy"),
     "XAUUSD_GSRS"               : ("strategies.experimental.gold_newstrat", "XAUUSDGSRSStrategy"),
+    "XAUUSD_ASIAN_LONDON"       : ("strategies.xauusd_asian_london", "XAUUSDAsianLondonStrategy"),
 }
 
 
