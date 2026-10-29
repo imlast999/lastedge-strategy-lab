@@ -80,14 +80,6 @@ BASE_STRATEGY_CATALOG: Dict[str, Dict[str, Any]] = {
                 "allowed_timeframes": ["H1"],
                 "default_timeframe": "H1",
                 "lookback_min": 200,
-            },
-            {
-                "id": "xauusd_asian_london",
-                "name": "XAUUSD Asian-London Strategy (v1.0)",
-                "description": "Asian range liquidity sweep & London opening volatility expansion",
-                "allowed_timeframes": ["H1"],
-                "default_timeframe": "H1",
-                "lookback_min": 200,
             }
         ]
     },
