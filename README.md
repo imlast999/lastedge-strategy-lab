@@ -109,7 +109,9 @@ Current test suite status: **54 / 54 passed (100% Green)**.
 
 ### CI / Continuous Integration:
 - **Strategy Lab CI**: Automated on every push and pull request via [GitHub Actions](.github/workflows/ci.yml).
-- **Environment**: Multi-Python matrix (3.10, 3.11, 3.12, 3.14) on Ubuntu and Windows.
+- **Environment**: Multi-Python matrix (3.10, 3.11, 3.12).
+- **Automated Observability**: Instant CI failure notifications dispatched simultaneously to Telegram and Discord bots via scripts/notify_bots.py.
+- **Private Vault Validation**: Serves as the research runner for proprietary strategies in LastEdge-Private-Strategies without exposing confidential alpha.
 
 ---
 
