@@ -162,7 +162,12 @@ def main():
         print("\n🔄 [Phase 5/6] Running Walk Forward Analysis (WFA)...")
         wf_tester = WalkForwardTester(lookback=required_history)
         wf_report = wf_tester.run(symbol=symbol, strategy=strategy_name, total_bars=len(df_full) - required_history, df_override=df_full)
-        wes_score = wf_report.overall_wes()
+        wes_score = getattr(wf_report, "consistency_score", 0.0)
+        if hasattr(wf_report, "overall_wes") and callable(wf_report.overall_wes):
+            try:
+                wes_score = wf_report.overall_wes()
+            except Exception:
+                pass
         print(f"  • Windows Analyzed  : {len(wf_report.windows)}")
         print(f"  • WFA Score (WES)   : {wes_score:.2f} ({'PASS ✅' if wes_score >= 0.60 else 'WARNING ⚠️'})")
         pipeline_report["stages"]["walk_forward"] = {

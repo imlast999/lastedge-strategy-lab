@@ -1,18 +1,17 @@
-# Estrategias Descartadas
-
-Estas estrategias fueron evaluadas y descartadas tras el grid search de mayo 2026.
-Se conservan para referencia histórica y posible revisión futura.
-
-| Estrategia | Motivo de descarte | Mejor PF obtenido |
-|---|---|---|
-| `eurusd_mtf` | PF máximo 0.42 en todo el grid. Sin edge en ninguna combinación. | 0.42 |
-| `xauusd_psychological` | PF máximo 0.94, nunca llega a break-even. | 0.94 |
-| `xauusd_reversal` | 1 señal en 5000 velas. Demasiado restrictiva para generar datos. | N/A |
-
-## Cómo reactivar una estrategia
-
-Si en el futuro se quiere reactivar alguna:
-1. Moverla de vuelta a `strategies/`
-2. Añadirla al `STRATEGY_REGISTRY` en `signals.py`
-3. Añadirla a `STRATEGIES_BY_SYMBOL` en `tests/backtest_runner.py`
-4. Correr backtest completo antes de usar en producción
+# Discarded Strategies
+
+These strategies were evaluated and discarded following the May 2026 grid search optimization.
+They are preserved for historical reference and potential future review.
+
+| Strategy | Discard Reason | Best Profit Factor |
+|---|---|---|
+| `eurusd_mtf` | Maximum PF 0.42 across the entire parameter grid. No edge found in any combination. | 0.42 |
+| `xauusd_psychological` | Maximum PF 0.94, fails to achieve break-even. | 0.94 |
+| `xauusd_reversal` | 1 signal in 5,000 candles. Excessively restrictive to produce statistical sample. | N/A |
+
+## Reactivating a Strategy
+
+If any model is revisited in the future:
+1. Move the strategy file back to `strategies/` or `strategies/vault/`.
+2. Re-run parameter optimization and Walk-Forward Analysis (`scripts/run_wfa.py`).
+3. Validate contract conformance via `pytest tests/test_strategy_validation.py`.
