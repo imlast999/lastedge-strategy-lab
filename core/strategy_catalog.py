@@ -221,7 +221,7 @@ def discover_dynamic_strategies() -> None:
                                 strat_id = str(inst.strategy_name).lower()
                             if hasattr(inst, "metadata") and inst.metadata:
                                 meta = inst.metadata
-                                if hasattr(meta, "symbol") and meta.symbol:
+                                if hasattr(meta, "symbol") and meta.symbol and str(meta.symbol).upper() != "UNKNOWN":
                                     sym = str(meta.symbol).upper()
                                 if hasattr(meta, "timeframe") and meta.timeframe:
                                     tfs = [str(meta.timeframe).upper()]
@@ -234,6 +234,9 @@ def discover_dynamic_strategies() -> None:
                         if hasattr(strat_pkg, "STRATEGY_REGISTRY"):
                             strat_pkg.STRATEGY_REGISTRY[strat_id] = cls
                             strat_pkg.STRATEGY_REGISTRY[strat_id.upper()] = cls
+
+                        if sym.upper() in ("UNKNOWN", "NONE", ""):
+                            continue
 
                         # Add to STRATEGY_CATALOG if not already present
                         if sym not in STRATEGY_CATALOG:
@@ -305,16 +308,18 @@ def get_strategy_catalog() -> Dict[str, Any]:
     """
     discover_dynamic_strategies()
 
-    symbols = list(STRATEGY_CATALOG.keys())
+    symbols = [s for s in STRATEGY_CATALOG.keys() if s and s.upper() != "UNKNOWN"]
     strategies_by_symbol: Dict[str, List[Dict[str, Any]]] = {}
-    for sym, data in STRATEGY_CATALOG.items():
-        strategies_by_symbol[sym] = data["strategies"]
+    clean_catalog: Dict[str, Dict[str, Any]] = {}
+    for sym in symbols:
+        strategies_by_symbol[sym] = STRATEGY_CATALOG[sym]["strategies"]
+        clean_catalog[sym] = STRATEGY_CATALOG[sym]
 
     return {
         "ok": True,
         "symbols": symbols,
         "strategies": strategies_by_symbol,
-        "catalog": STRATEGY_CATALOG,
+        "catalog": clean_catalog,
     }
 
 
