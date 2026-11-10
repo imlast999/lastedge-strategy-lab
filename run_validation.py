@@ -153,7 +153,7 @@ def run_phase3(variants, prod_config: Dict) -> Dict:
     """
     from core.exit_research.runner import ExitResearchRunner
     from core.exit_research.strategy_adapter import StrategyAdapter
-    from strategies.eurusd import EURUSDStrategy
+    from strategies import EURUSDStrategy
 
     logger.info("=" * 60)
     logger.info("FASE 3 — Backtest largo: 10k / 15k / 20k velas")

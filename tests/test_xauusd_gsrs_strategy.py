@@ -13,22 +13,43 @@ import pytest
 import pandas as pd
 import numpy as np
 
-from strategies.experimental.gold_newstrat import (
-    GSRSConfig,
-    GSRSState,
-    GSRSStrategy,
-    XAUUSDGSRSStrategy,
-    Candle,
-    SwingPoint,
-    TradeSetup,
-)
-from strategies.experimental.gold_newstrat.gsrs_strategy import (
-    detect_swings,
-    check_type3_shift,
-    pullback_entry_level,
-    compute_stop_loss,
-    compute_take_profit,
-)
+try:
+    from strategies.vault.archive.experimental.gold_newstrat import (
+        GSRSConfig,
+        GSRSState,
+        GSRSStrategy,
+        XAUUSDGSRSStrategy,
+        Candle,
+        SwingPoint,
+        TradeSetup,
+    )
+    from strategies.vault.archive.experimental.gold_newstrat.gsrs_strategy import (
+        detect_swings,
+        check_type3_shift,
+        pullback_entry_level,
+        compute_stop_loss,
+        compute_take_profit,
+    )
+except ImportError:
+    try:
+        from strategies.experimental.gold_newstrat import (
+            GSRSConfig,
+            GSRSState,
+            GSRSStrategy,
+            XAUUSDGSRSStrategy,
+            Candle,
+            SwingPoint,
+            TradeSetup,
+        )
+        from strategies.experimental.gold_newstrat.gsrs_strategy import (
+            detect_swings,
+            check_type3_shift,
+            pullback_entry_level,
+            compute_stop_loss,
+            compute_take_profit,
+        )
+    except ImportError:
+        pytest.skip("GSRS experimental strategy not available (isolated in private vault archive)", allow_module_level=True)
 from strategies import STRATEGY_REGISTRY
 from core.exit_research.strategy_adapter import adapter_for_symbol, StrategyAdapter
 

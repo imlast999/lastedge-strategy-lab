@@ -1,55 +1,57 @@
 """
-Trading Strategies Module
+Trading Strategies Module — Strategy Lab
 
 Provides access to all trading strategies and strategy management functions.
+Operates on an Open-Core architecture:
+- Public benchmark strategies (strategies/public/) serve as open baseline models.
+- Proprietary algorithms (strategies/vault/) are loaded dynamically when present.
 """
 
+from __future__ import annotations
+
 import logging
+from typing import Dict, Any, Optional
 from .base import BaseStrategy
 
 logger = logging.getLogger(__name__)
-from .eurusd import EURUSDStrategy, EURUSDPartialStrategy
-from .xauusd import XAUUSDStrategy
-from .xauusd_partial import XAUUSDPartialStrategy
 
-# Import BTCEUR desde la implementación oficial (btceur_new.py)
-# Este es ahora el ÚNICO origen de la estrategia BTCEUR en el sistema.
+# ── 1. Import baseline benchmark strategies for open-core / self-hosted users ──
 try:
-    from .btceur_new import BTCEURStrategy
-    from .btceur_partial import BTCEURPartialStrategy
-    BTCEUR_AVAILABLE = True
+    from .public.eurusd_public_trend import EURUSDPublicTrendStrategy
+    from .public.xauusd_public_breakout import XAUUSDPublicBreakoutStrategy
+    from .public.btceur_public_momentum import BTCEURPublicMomentumStrategy
+    PUBLIC_BENCHMARKS_AVAILABLE = True
 except ImportError as e:
-    print(f"Warning: BTCEURStrategy not available: {e}")
-    BTCEURStrategy = None
-    BTCEURPartialStrategy = None
-    BTCEUR_AVAILABLE = False
+    logger.warning("Public benchmark strategies not available: %s", e)
+    EURUSDPublicTrendStrategy = None
+    XAUUSDPublicBreakoutStrategy = None
+    BTCEURPublicMomentumStrategy = None
+    PUBLIC_BENCHMARKS_AVAILABLE = False
 
+# ── 2. Initialize open-core baseline registry ──
+STRATEGY_REGISTRY: Dict[str, Any] = {}
+
+if EURUSDPublicTrendStrategy is not None:
+    STRATEGY_REGISTRY['EURUSD'] = EURUSDPublicTrendStrategy
+    STRATEGY_REGISTRY['EURUSD_LEGACY'] = EURUSDPublicTrendStrategy
+    STRATEGY_REGISTRY['eurusd_public_trend'] = EURUSDPublicTrendStrategy
+
+if XAUUSDPublicBreakoutStrategy is not None:
+    STRATEGY_REGISTRY['XAUUSD'] = XAUUSDPublicBreakoutStrategy
+    STRATEGY_REGISTRY['XAUUSD_LEGACY'] = XAUUSDPublicBreakoutStrategy
+    STRATEGY_REGISTRY['xauusd_public_breakout'] = XAUUSDPublicBreakoutStrategy
+
+if BTCEURPublicMomentumStrategy is not None:
+    STRATEGY_REGISTRY['BTCEUR'] = BTCEURPublicMomentumStrategy
+    STRATEGY_REGISTRY['btceur_public_momentum'] = BTCEURPublicMomentumStrategy
+
+# ── 3. Dynamic ingestion of promoted packages and private vault strategies ──────
 try:
-    from .experimental.gold_newstrat import XAUUSDGSRSStrategy
-    XAUUSD_GSRS_AVAILABLE = True
-except ImportError as e:
-    logger.warning("XAUUSDGSRSStrategy not available: %s", e)
-    XAUUSDGSRSStrategy = None
-    XAUUSD_GSRS_AVAILABLE = False
-
-# Strategy registry
-STRATEGY_REGISTRY = {
-    'EURUSD': EURUSDPartialStrategy,   # v1.1 — partial_close validado (jul 2026)
-    'EURUSD_LEGACY': EURUSDStrategy,   # referencia histórica — no activo en producción
-    'XAUUSD': XAUUSDPartialStrategy,   # v1.1 — partial_close validado (jul 2026)
-    'XAUUSD_LEGACY': XAUUSDStrategy,  # referencia histórica — no activo en producción
-}
-
-if XAUUSD_GSRS_AVAILABLE:
-    STRATEGY_REGISTRY['XAUUSD_GSRS'] = XAUUSDGSRSStrategy
-
-# Add BTCEUR only if available
-if BTCEUR_AVAILABLE:
-    STRATEGY_REGISTRY['BTCEUR'] = BTCEURPartialStrategy
-
-# Ingestión automática de paquetes promovidos y estrategias privadas (Vault)
-try:
-    from services.strategy_loader import register_promoted_strategies, register_vault_strategies, register_public_strategies
+    from services.strategy_loader import (
+        register_promoted_strategies,
+        register_vault_strategies,
+        register_public_strategies
+    )
     register_promoted_strategies(STRATEGY_REGISTRY)
     register_public_strategies(STRATEGY_REGISTRY)
     vault_count = register_vault_strategies(STRATEGY_REGISTRY)
@@ -58,10 +60,39 @@ try:
 except Exception as _loader_err:
     logger.debug("StrategyLoader / Vault auto-discovery in Strategy Lab deferred/skipped: %s", _loader_err)
 
+# Ingestion of experimental research strategies if available in vault archive
+try:
+    from .vault.archive.experimental.gold_newstrat import XAUUSDGSRSStrategy
+    STRATEGY_REGISTRY['XAUUSD_GSRS'] = XAUUSDGSRSStrategy
+except ImportError:
+    try:
+        from .experimental.gold_newstrat import XAUUSDGSRSStrategy
+        STRATEGY_REGISTRY['XAUUSD_GSRS'] = XAUUSDGSRSStrategy
+    except ImportError:
+        pass
 
-def get_strategy(symbol: str):
+# ── 4. Backward-compatible class exports and canonical references ───────────────
+EURUSDStrategy = STRATEGY_REGISTRY.get('EURUSD_LEGACY', STRATEGY_REGISTRY.get('EURUSD', EURUSDPublicTrendStrategy))
+EURUSDPartialStrategy = STRATEGY_REGISTRY.get('eurusd_partial', STRATEGY_REGISTRY.get('EURUSD', EURUSDPublicTrendStrategy))
+XAUUSDStrategy = STRATEGY_REGISTRY.get('XAUUSD_LEGACY', STRATEGY_REGISTRY.get('XAUUSD', XAUUSDPublicBreakoutStrategy))
+XAUUSDPartialStrategy = STRATEGY_REGISTRY.get('xauusd_partial', STRATEGY_REGISTRY.get('XAUUSD', XAUUSDPublicBreakoutStrategy))
+BTCEURStrategy = STRATEGY_REGISTRY.get('BTCEUR', BTCEURPublicMomentumStrategy)
+BTCEURPartialStrategy = STRATEGY_REGISTRY.get('btceur_partial', STRATEGY_REGISTRY.get('BTCEUR', BTCEURPublicMomentumStrategy))
+
+# Ensure STRATEGY_REGISTRY primary symbols point to active production classes
+STRATEGY_REGISTRY['EURUSD'] = EURUSDPartialStrategy
+STRATEGY_REGISTRY['XAUUSD'] = XAUUSDPartialStrategy
+STRATEGY_REGISTRY['BTCEUR'] = BTCEURPartialStrategy
+STRATEGY_REGISTRY['eurusd_partial'] = EURUSDPartialStrategy
+STRATEGY_REGISTRY['xauusd_partial'] = XAUUSDPartialStrategy
+STRATEGY_REGISTRY['btceur_partial'] = BTCEURPartialStrategy
+
+BTCEUR_AVAILABLE = BTCEURPartialStrategy is not None
+
+
+def get_strategy(symbol: str) -> Optional[BaseStrategy]:
     """
-    Get strategy instance for a given symbol
+    Get strategy instance for a given symbol.
     
     Args:
         symbol: Trading symbol (e.g., 'EURUSD', 'XAUUSD', 'BTCEUR')
@@ -72,7 +103,6 @@ def get_strategy(symbol: str):
     symbol_upper = symbol.upper()
     strategy_class = STRATEGY_REGISTRY.get(symbol_upper)
 
-    # Estrategia registrada correctamente
     if strategy_class:
         return strategy_class()
 
@@ -89,18 +119,23 @@ def get_strategy(symbol: str):
     
     # Fallback genérico a EURUSD solo para otros símbolos
     if symbol_upper != 'EURUSD':
-        print(f"Warning: Strategy for {symbol} not found, using EURUSD as fallback")
-        return EURUSDStrategy()
+        logger.warning("Strategy for %s not found, using EURUSD fallback", symbol)
+        eur_cls = STRATEGY_REGISTRY.get('EURUSD')
+        if eur_cls:
+            return eur_cls()
     
     return None
 
-def get_available_symbols():
+
+def get_available_symbols() -> list[str]:
     """Get list of symbols with available strategies"""
     return list(STRATEGY_REGISTRY.keys())
 
-def register_strategy(symbol: str, strategy_class):
+
+def register_strategy(symbol: str, strategy_class: Any) -> None:
     """Register a new strategy for a symbol"""
     STRATEGY_REGISTRY[symbol.upper()] = strategy_class
+
 
 __all__ = [
     'BaseStrategy',
@@ -108,13 +143,11 @@ __all__ = [
     'EURUSDPartialStrategy',
     'XAUUSDStrategy',
     'XAUUSDPartialStrategy',
+    'BTCEURStrategy',
+    'BTCEURPartialStrategy',
     'get_strategy',
     'get_available_symbols',
     'register_strategy',
-    'STRATEGY_REGISTRY'
+    'STRATEGY_REGISTRY',
+    'BTCEUR_AVAILABLE'
 ]
-
-# Add BTCEURStrategy to exports only if available
-if BTCEUR_AVAILABLE:
-    __all__.append('BTCEURStrategy')
-    __all__.append('BTCEURPartialStrategy')
