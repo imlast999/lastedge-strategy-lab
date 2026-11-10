@@ -16,6 +16,7 @@ research.db-wal
 research.db-shm
 data/historical/
 data/cache/
+data/candidates/
 
 # Logs
 logs/
