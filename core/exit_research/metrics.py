@@ -75,6 +75,13 @@ class ExtendedMetrics:
     # ── Stability Score ───────────────────────────────────────────────────────
     stability_score:   float = 0.0   # 0–100
 
+    # ── Scoring Analysis & Stratification ────────────────────────────────────
+    avg_score_all:       float = 0.0
+    avg_score_winners:   float = 0.0
+    avg_score_losers:    float = 0.0
+    score_edge_delta:    float = 0.0
+    scoring_buckets:     List[Dict[str, Any]] = field(default_factory=list)
+
     # ── Datos crudos para walk-forward / MC ──────────────────────────────────
     # Se rellenan externamente por el runner
     wf_stability:     Optional[str] = None   # STABLE / MARGINAL / UNSTABLE
@@ -251,6 +258,66 @@ def compute_metrics(
 
     # ── Stability Score ───────────────────────────────────────────────────────
     m.stability_score = _stability_score(m)
+
+    # ── Scoring Analysis & Stratification ────────────────────────────────────
+    trade_scores = [getattr(t, "score", None) for t in closed if getattr(t, "score", None) is not None]
+    if trade_scores:
+        scores_all = [float(s) for s in trade_scores]
+        scores_win = [float(t.score) for t in closed if t.result == "WIN" and getattr(t, "score", None) is not None]
+        scores_loss = [float(t.score) for t in closed if t.result == "LOSS" and getattr(t, "score", None) is not None]
+
+        m.avg_score_all = round(sum(scores_all) / len(scores_all), 4) if scores_all else 0.0
+        m.avg_score_winners = round(sum(scores_win) / len(scores_win), 4) if scores_win else 0.0
+        m.avg_score_losers = round(sum(scores_loss) / len(scores_loss), 4) if scores_loss else 0.0
+        m.score_edge_delta = round(m.avg_score_winners - m.avg_score_losers, 4)
+
+        bucket_defs = [
+            {"tier": "ELITE", "label": "0.90 – 1.00 (Elite)", "min_score": 0.90, "max_score": 1.01},
+            {"tier": "VERY_HIGH", "label": "0.80 – 0.89 (Very High)", "min_score": 0.80, "max_score": 0.90},
+            {"tier": "HIGH", "label": "0.70 – 0.79 (High)", "min_score": 0.70, "max_score": 0.80},
+            {"tier": "MEDIUM", "label": "0.60 – 0.69 (Medium)", "min_score": 0.60, "max_score": 0.70},
+            {"tier": "LOW", "label": "< 0.60 (Low / Filtered)", "min_score": 0.00, "max_score": 0.60},
+        ]
+
+        buckets = []
+        for b_def in bucket_defs:
+            b_trades = [
+                t for t in closed
+                if getattr(t, "score", None) is not None
+                and b_def["min_score"] <= float(t.score) < b_def["max_score"]
+            ]
+            b_count = len(b_trades)
+            if b_count > 0:
+                b_wins = sum(1 for t in b_trades if t.result == "WIN")
+                b_losses = sum(1 for t in b_trades if t.result == "LOSS")
+                b_wr = round((b_wins / b_count * 100.0), 1)
+                b_pips = [t.profit_pips or 0.0 for t in b_trades]
+                b_net_pips = round(sum(b_pips), 2)
+                b_gross_win = sum(p for p in b_pips if p > 0)
+                b_gross_loss = abs(sum(p for p in b_pips if p < 0))
+                b_pf = round(b_gross_win / b_gross_loss, 2) if b_gross_loss > 0 else (99.0 if b_gross_win > 0 else 0.0)
+            else:
+                b_wins = 0
+                b_losses = 0
+                b_wr = 0.0
+                b_pf = 0.0
+                b_net_pips = 0.0
+
+            buckets.append({
+                "tier": b_def["tier"],
+                "range_label": b_def["label"],
+                "min_score": b_def["min_score"],
+                "max_score": b_def["max_score"],
+                "trades_count": b_count,
+                "trades_pct": round((b_count / len(closed) * 100.0), 1) if closed else 0.0,
+                "wins": b_wins,
+                "losses": b_losses,
+                "win_rate_pct": b_wr,
+                "profit_factor": b_pf,
+                "net_pips": b_net_pips,
+            })
+
+        m.scoring_buckets = buckets
 
     return m
 

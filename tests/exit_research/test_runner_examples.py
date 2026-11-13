@@ -291,3 +291,30 @@ def test_smoke_run():
     # results section must have entries for both variants
     assert "rr_1_3" in report["results"]
     assert "rr_1_4" in report["results"]
+
+
+def test_exit_research_scoring_integration():
+    """Validates that compute_metrics extracts scoring buckets and trade edge."""
+    from core.exit_research.metrics import compute_metrics
+
+    trades = [
+        _Trade(result="WIN", profit_pips=25.0, bar_index=10, exit_bar=15, score=0.92),
+        _Trade(result="WIN", profit_pips=18.0, bar_index=20, exit_bar=25, score=0.85),
+        _Trade(result="LOSS", profit_pips=-15.0, bar_index=30, exit_bar=35, score=0.72),
+        _Trade(result="LOSS", profit_pips=-12.0, bar_index=40, exit_bar=45, score=0.65),
+    ]
+
+    metrics = compute_metrics("test_variant", "Test Variant", 5000, trades)
+    assert metrics.signals == 4
+    assert metrics.wins == 2
+    assert metrics.losses == 2
+    assert metrics.avg_score_all > 0.70
+    assert metrics.avg_score_winners > metrics.avg_score_losers
+    assert metrics.score_edge_delta > 0.0
+    assert len(metrics.scoring_buckets) == 5
+
+    # Check Elite bucket
+    elite = [b for b in metrics.scoring_buckets if b["tier"] == "ELITE"][0]
+    assert elite["trades_count"] == 1
+    assert elite["win_rate_pct"] == 100.0
+    assert elite["net_pips"] == 25.0

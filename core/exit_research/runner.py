@@ -236,11 +236,16 @@ class ExitResearchRunner:
         max_fwd:  int  = 300,
         variants: Optional[List[ExitVariant]] = None,
         levels:   Optional[List[int]] = None,
+        filter_by_min_score: bool = True,
+        min_score: Optional[float] = None,
     ):
         self.symbol   = symbol
         self.max_fwd  = max_fwd
         self.variants = variants or ALL_VARIANTS
         self.levels   = levels   or BACKTEST_LEVELS
+        self.filter_by_min_score = filter_by_min_score
+        self.min_score = min_score
+        self._scorer = None
 
         # Inyectar pip_size correcto en cada variante según el símbolo
         from .variants import get_pip_size
@@ -454,6 +459,14 @@ class ExitResearchRunner:
         """
         adapter = self._get_strategy_adapter()
 
+        if self._scorer is None:
+            try:
+                from core.scoring import FlexibleScoring
+                self._scorer = FlexibleScoring()
+            except Exception as e:
+                logger.debug(f"[ExitResearchRunner] Could not initialize FlexibleScoring: {e}")
+                self._scorer = False
+
         df_full = df_full.reset_index(drop=True)
         total   = len(df_full)
         max_idx = min(self.lookback + n_bars, total)
@@ -473,6 +486,31 @@ class ExitResearchRunner:
 
             if not signal:
                 continue
+
+            sig_dict = signal if isinstance(signal, dict) else (signal.to_dict() if hasattr(signal, 'to_dict') else dict(signal))
+            score = 0.75
+            if self._scorer:
+                try:
+                    sym_key = self.symbol.upper().strip()
+                    df_ind = adapter.strategy.add_indicators(window.copy(), adapter.config)
+                    confirmations = self._scorer.create_standard_confirmations(sig_dict, df_ind, sym_key)
+                    raw_qual = sig_dict.get('setup_strength') or sig_dict.get('setup_quality') or 0.80
+                    strat_name = getattr(adapter.strategy, 'strategy_name', None) or getattr(adapter, 'name', None)
+                    res = self._scorer.evaluate_signal(sym_key, True, confirmations, setup_quality=float(raw_qual), strategy=strat_name)
+                    score = round(float(res.final_score), 4)
+                except Exception:
+                    score = 0.75
+
+            # Filtro por min_score si está habilitado
+            if self.filter_by_min_score and self._scorer:
+                strat_cfg = getattr(adapter, 'config', {}) or {}
+                min_req = self.min_score or strat_cfg.get('min_score') or sig_dict.get('min_score')
+                if min_req is None:
+                    sym_cfg = self._scorer.symbol_config.get(self.symbol, {})
+                    strat_settings = sym_cfg.get('strategy_settings', {}).get((getattr(adapter.strategy, 'strategy_name', '') or '').lower(), {})
+                    min_req = strat_settings.get('min_score') or sym_cfg.get('min_score', 0.60)
+                if min_req is not None and score < float(min_req):
+                    continue
 
             entry     = float(signal["entry"])
             direction = str(signal["type"])
@@ -509,6 +547,7 @@ class ExitResearchRunner:
                         mae_pips=res.mae_pips,
                         mfe_pips=res.mfe_pips,
                         timestamp=ts_val,
+                        score=score,
                     ))
             else:
                 trades.append(_Trade(
@@ -519,6 +558,7 @@ class ExitResearchRunner:
                     mae_pips=exit_res.mae_pips,
                     mfe_pips=exit_res.mfe_pips,
                     timestamp=ts_val,
+                    score=score,
                 ))
 
         elapsed = time.time() - t0
@@ -1321,6 +1361,41 @@ class ExitResearchRunner:
                 f"{_v('mae_winners')} | {_v('mfe_winners')} | {_v('profit_captured_pct')} |"
             )
 
+        # Estratificación por Scoring Buckets
+        has_scoring = any(
+            (levels.get(max_level_str, {}).get("metrics") or {}).get("scoring_buckets")
+            for levels in results.values()
+        )
+        if has_scoring:
+            lines += [
+                "",
+                "---",
+                "",
+                "## Estratificación por Scoring Buckets",
+                "",
+                "Rendimiento de cada variante de salida desglosado por nivel de convicción institucional:",
+                "",
+                "| Variante | Score Medio | Edge Delta | Elite (0.90+) PF [Trades] | Very High (0.80+) PF [Trades] | High (0.70+) PF [Trades] | Medium (0.60+) PF [Trades] |",
+                "|:---------|:-----------:|:----------:|:-------------------------:|:------------------------------:|:--------------------------:|:---------------------------:|",
+            ]
+            for vname, levels in results.items():
+                r_data = levels.get(max_level_str, {})
+                m = (r_data.get("metrics") or {}) if r_data else {}
+                if not m:
+                    continue
+                buckets = {b.get("tier"): b for b in m.get("scoring_buckets", [])}
+                def _b_str(tier):
+                    b = buckets.get(tier)
+                    if not b or b.get("trades_count", 0) == 0:
+                        return "—"
+                    return f"**{b.get('profit_factor', 0.0):.2f}** ({b.get('trades_count')}t / {b.get('net_pips', 0.0):+.0f}p)"
+
+                avg_sc = f"{float(m.get('avg_score_all', 0.0)):.2f}" if m.get('avg_score_all') else "—"
+                edge_d = f"{float(m.get('score_edge_delta', 0.0)):+.3f}" if m.get('score_edge_delta') is not None else "—"
+                lines.append(
+                    f"| {vname} | {avg_sc} | {edge_d} | {_b_str('ELITE')} | {_b_str('VERY_HIGH')} | {_b_str('HIGH')} | {_b_str('MEDIUM')} |"
+                )
+
         # Conclusiones
         lines += [
             "",
@@ -1392,10 +1467,11 @@ class ExitResearchRunner:
 
 class _Trade:
     """Objeto mínimo compatible con compute_metrics."""
-    __slots__ = ("result", "profit_pips", "bar_index", "exit_bar", "mae_pips", "mfe_pips", "timestamp")
+    __slots__ = ("result", "profit_pips", "bar_index", "exit_bar", "mae_pips", "mfe_pips", "timestamp", "score")
 
     def __init__(self, result, profit_pips, bar_index, exit_bar,
-                 mae_pips: float = 0.0, mfe_pips: float = 0.0, timestamp: str = None):
+                 mae_pips: float = 0.0, mfe_pips: float = 0.0, timestamp: str = None,
+                 score: float = 0.75):
         self.result      = result
         self.profit_pips = profit_pips
         self.bar_index   = bar_index
@@ -1403,6 +1479,7 @@ class _Trade:
         self.mae_pips    = mae_pips
         self.mfe_pips    = mfe_pips
         self.timestamp   = timestamp
+        self.score       = float(score)
 
 
 # ── Nota: run_exit_research() se define en core/exit_research/__init__.py ──────
