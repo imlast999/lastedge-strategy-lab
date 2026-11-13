@@ -99,7 +99,34 @@ class StrategyLabSignalEvaluator:
         if not sig:
             return EngineSignalResult(signal=None, rejection_reason="No setup básico detectado")
 
-        return EngineSignalResult(signal=sig, should_show=True, confidence="HIGH", score=80.0)
+        sig_dict = sig.to_dict() if hasattr(sig, 'to_dict') else (sig if isinstance(sig, dict) else dict(sig))
+        setup_quality = sig_dict.get('setup_strength') or sig_dict.get('setup_quality') or 0.80
+        try:
+            setup_quality = float(setup_quality)
+        except (ValueError, TypeError):
+            setup_quality = 0.80
+
+        score = setup_quality
+        confidence = "HIGH"
+        should_show = True
+        try:
+            from core.scoring import FlexibleScoring
+            if not hasattr(self, '_scorer') or self._scorer is None:
+                self._scorer = FlexibleScoring()
+
+            df_ind = adapter.strategy.add_indicators(window.copy(), adapter.config)
+            confirmations = self._scorer.create_standard_confirmations(sig_dict, df_ind, sym_key)
+            res = self._scorer.evaluate_signal(sym_key, True, confirmations, setup_quality=setup_quality)
+            score = round(float(res.final_score), 4)
+            confidence = res.confidence_level
+            should_show = res.should_show
+        except Exception as e:
+            logger.debug(f"[StrategyLabSignalEvaluator] Scoring calculation: {e}")
+            score = round(setup_quality, 4)
+            confidence = "HIGH" if score >= 0.75 else "MEDIUM"
+            should_show = True
+
+        return EngineSignalResult(signal=sig_dict, should_show=should_show, confidence=confidence, score=score)
 
 
 _signal_evaluator_instance: Optional[StrategyLabSignalEvaluator] = None

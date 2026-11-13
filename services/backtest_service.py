@@ -287,7 +287,10 @@ class BacktestService:
                     ruin_count += 1
             ruin_prob_pct = round((ruin_count / n_sims) * 100.0, 1)
 
-        # 5. Generación del DICTAMEN CIENTÍFICO ULTRA-DETALLADO (Verbose Reliability Verdict)
+        # 5. Análisis de Calibración de Scoring y Estratificación por Rangos
+        scoring_analysis = self._compute_scoring_analysis(trades)
+
+        # 6. Generación del DICTAMEN CIENTÍFICO ULTRA-DETALLADO (Verbose Reliability Verdict)
         verdict = self._evaluate_verdict(
             profit_factor=profit_factor,
             sharpe_ratio=sharpe_ratio,
@@ -302,12 +305,13 @@ class BacktestService:
 
         duration_ms = round((datetime.now(timezone.utc) - t0).total_seconds() * 1000, 1)
 
-        # 6. Registrar en research.db
+        # 7. Registrar en research.db
         exp_id = f"bt_{sym.lower()}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         notes_str = (
             f"Trades: {total_trades} (W:{len(wins)}/L:{len(losses)}) | "
             f"Net: {round(net_profit_pips, 1)}p (${round(net_profit_pips * pip_value_usd, 2)}) | "
-            f"CB: {stats.cb_activations} | DD: {max_dd_pct}% | Exp: {expectancy_pips}p"
+            f"CB: {stats.cb_activations} | DD: {max_dd_pct}% | Exp: {expectancy_pips}p | "
+            f"Score Edge: +{scoring_analysis.get('score_edge_delta', 0.0):.2f}"
         )
         try:
             self.research_store.create_experiment({
@@ -356,6 +360,7 @@ class BacktestService:
                     "setups_detected": stats.setups_detected,
                     "starting_equity_usd": 10000.0,
                     "final_equity_usd": round(current_eq, 2),
+                    "scoring_analysis": scoring_analysis,
                 }, ensure_ascii=False),
             })
         except Exception as e:
@@ -397,7 +402,12 @@ class BacktestService:
                 "setups_detected": stats.setups_detected,
                 "starting_equity_usd": 10000.0,
                 "final_equity_usd": round(current_eq, 2),
+                "avg_score_all": scoring_analysis.get("avg_score_all", 0.0),
+                "avg_score_winners": scoring_analysis.get("avg_score_winners", 0.0),
+                "avg_score_losers": scoring_analysis.get("avg_score_losers", 0.0),
+                "score_edge_delta": scoring_analysis.get("score_edge_delta", 0.0),
             },
+            "scoring_analysis": scoring_analysis,
             "verdict": verdict,
             "trades_sample": [
                 {
@@ -406,12 +416,144 @@ class BacktestService:
                     "entry": t.entry,
                     "sl": t.sl,
                     "tp": t.tp,
+                    "score": round(float(t.score) / 100.0 if float(t.score or 0) > 1.0 else float(t.score or 0), 2),
+                    "confidence": t.confidence or ("VERY_HIGH" if (t.score or 0) >= 0.85 else "HIGH" if (t.score or 0) >= 0.70 else "MEDIUM"),
                     "result": t.result,
                     "profit_pips": t.profit_pips,
                 }
-                for t in trades[-15:]
+                for t in trades[-30:]
             ],
             "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def _compute_scoring_analysis(self, trades: List[Any]) -> Dict[str, Any]:
+        """
+        Calcula el análisis de calibración de scoring y estratificación por deciles/rangos.
+        Permite validar empíricamente si un mayor score predice un mayor win rate y expectancy.
+        """
+        if not trades:
+            return {
+                "has_data": False,
+                "total_trades": 0,
+                "avg_score_all": 0.0,
+                "avg_score_winners": 0.0,
+                "avg_score_losers": 0.0,
+                "score_edge_delta": 0.0,
+                "is_calibrated": False,
+                "calibration_verdict": "NO_DATA",
+                "calibration_summary": "Sin datos suficientes de operaciones.",
+                "buckets": [],
+            }
+
+        trade_data = []
+        for t in trades:
+            raw_score = getattr(t, 'score', 0.80)
+            if raw_score is None:
+                raw_score = 0.80
+            raw_score = float(raw_score)
+            # Normalizar a escala 0.00 - 1.00 si venía en escala 0 - 100
+            score = round(raw_score / 100.0 if raw_score > 1.0 else raw_score, 4)
+            pips = float(getattr(t, 'profit_pips', 0.0) or 0.0)
+            trade_data.append({
+                "score": score,
+                "result": getattr(t, 'result', 'LOSS'),
+                "pips": pips,
+                "type": getattr(t, 'signal_type', 'BUY'),
+                "entry": float(getattr(t, 'entry', 0.0)),
+                "sl": float(getattr(t, 'sl', 0.0)),
+                "tp": float(getattr(t, 'tp', 0.0)),
+                "timestamp": t.timestamp.isoformat() if hasattr(t, 'timestamp') and hasattr(t.timestamp, 'isoformat') else str(getattr(t, 'timestamp', '')),
+            })
+
+        scores_all = [td["score"] for td in trade_data]
+        scores_win = [td["score"] for td in trade_data if td["result"] == "WIN"]
+        scores_loss = [td["score"] for td in trade_data if td["result"] == "LOSS"]
+
+        avg_all = round(float(np.mean(scores_all)), 4) if scores_all else 0.0
+        avg_win = round(float(np.mean(scores_win)), 4) if scores_win else 0.0
+        avg_loss = round(float(np.mean(scores_loss)), 4) if scores_loss else 0.0
+        edge_delta = round(avg_win - avg_loss, 4)
+
+        bucket_definitions = [
+            {"tier": "ELITE", "min_score": 0.90, "max_score": 1.00, "label": "0.90 – 1.00 (Elite)"},
+            {"tier": "VERY_HIGH", "min_score": 0.80, "max_score": 0.8999, "label": "0.80 – 0.89 (Very High)"},
+            {"tier": "HIGH", "min_score": 0.70, "max_score": 0.7999, "label": "0.70 – 0.79 (High)"},
+            {"tier": "MEDIUM", "min_score": 0.60, "max_score": 0.6999, "label": "0.60 – 0.69 (Medium)"},
+            {"tier": "LOW", "min_score": 0.00, "max_score": 0.5999, "label": "< 0.60 (Low / Filtered)"},
+        ]
+
+        total_count = len(trade_data)
+        buckets = []
+
+        for b_def in bucket_definitions:
+            b_trades = [
+                td for td in trade_data
+                if b_def["min_score"] <= td["score"] <= b_def["max_score"]
+            ]
+            b_count = len(b_trades)
+            if b_count > 0:
+                b_wins = len([t for t in b_trades if t["result"] == "WIN"])
+                b_losses = len([t for t in b_trades if t["result"] == "LOSS"])
+                b_wr = round((b_wins / b_count) * 100.0, 1)
+                b_gross_win = sum(t["pips"] for t in b_trades if t["pips"] > 0)
+                b_gross_loss = abs(sum(t["pips"] for t in b_trades if t["pips"] < 0))
+                b_pf = round(b_gross_win / b_gross_loss, 2) if b_gross_loss > 0 else (99.0 if b_gross_win > 0 else 0.0)
+                b_net_pips = round(sum(t["pips"] for t in b_trades), 1)
+                b_avg_score = round(float(np.mean([t["score"] for t in b_trades])), 3)
+            else:
+                b_wins = 0
+                b_losses = 0
+                b_wr = 0.0
+                b_pf = 0.0
+                b_net_pips = 0.0
+                b_avg_score = round((b_def["min_score"] + min(1.0, b_def["max_score"])) / 2, 3)
+
+            buckets.append({
+                "tier": b_def["tier"],
+                "range_label": b_def["label"],
+                "min_score": b_def["min_score"],
+                "max_score": b_def["max_score"],
+                "trades_count": b_count,
+                "trades_pct": round((b_count / total_count * 100.0), 1) if total_count > 0 else 0.0,
+                "wins": b_wins,
+                "losses": b_losses,
+                "win_rate_pct": b_wr,
+                "profit_factor": b_pf,
+                "net_pips": b_net_pips,
+                "avg_score": b_avg_score,
+            })
+
+        is_calibrated = (avg_win >= avg_loss) and (len(scores_win) >= 3)
+        if is_calibrated and edge_delta >= 0.03:
+            calib_verdict = "POSITIVE_ALPHA"
+            calib_summary = (
+                f"Calibración positiva demostrada: las señales ganadoras promediaron un score de "
+                f"{avg_win:.2f} vs {avg_loss:.2f} en perdedoras (Edge Delta: +{edge_delta:.2f})."
+            )
+        elif is_calibrated:
+            calib_verdict = "NEUTRAL_MILD"
+            calib_summary = (
+                f"Calibración moderada: las señales ganadoras superan a las perdedoras "
+                f"(Score Win: {avg_win:.2f} vs Loss: {avg_loss:.2f}, Edge Delta: +{edge_delta:.2f})."
+            )
+        else:
+            calib_verdict = "UNCALIBRATED"
+            calib_summary = (
+                f"Calibración dispersa o muestra inicial: Score Win ({avg_win:.2f}) vs Loss ({avg_loss:.2f}). "
+                f"Evaluar sobre una muestra mayor de barras."
+            )
+
+        return {
+            "has_data": True,
+            "total_trades": total_count,
+            "avg_score_all": avg_all,
+            "avg_score_winners": avg_win,
+            "avg_score_losers": avg_loss,
+            "score_edge_delta": edge_delta,
+            "is_calibrated": is_calibrated,
+            "calibration_verdict": calib_verdict,
+            "calibration_summary": calib_summary,
+            "buckets": buckets,
         }
 
     def _evaluate_verdict(

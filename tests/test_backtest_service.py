@@ -74,3 +74,41 @@ def test_run_backtest_returns_valid_structure():
     assert "total_trades" in res["metrics"]
     assert "profit_factor" in res["metrics"]
     assert "recommendations" in res["verdict"]
+    assert "scoring_analysis" in res
+    assert "buckets" in res["scoring_analysis"]
+
+
+def test_scoring_calibration_and_buckets():
+    svc = get_backtest_service()
+    from core.replay_engine import ReplaySignal
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    mock_trades = [
+        ReplaySignal(timestamp=now, symbol="EURUSD", signal_type="BUY", entry=1.1, sl=1.09, tp=1.12, confidence="VERY_HIGH", score=0.92, bar_index=1, result="WIN", profit_pips=20.0),
+        ReplaySignal(timestamp=now, symbol="EURUSD", signal_type="BUY", entry=1.1, sl=1.09, tp=1.12, confidence="VERY_HIGH", score=0.88, bar_index=2, result="WIN", profit_pips=18.0),
+        ReplaySignal(timestamp=now, symbol="EURUSD", signal_type="BUY", entry=1.1, sl=1.09, tp=1.12, confidence="HIGH", score=0.74, bar_index=3, result="WIN", profit_pips=10.0),
+        ReplaySignal(timestamp=now, symbol="EURUSD", signal_type="SELL", entry=1.1, sl=1.11, tp=1.08, confidence="HIGH", score=0.71, bar_index=4, result="LOSS", profit_pips=-10.0),
+        ReplaySignal(timestamp=now, symbol="EURUSD", signal_type="SELL", entry=1.1, sl=1.11, tp=1.08, confidence="MEDIUM", score=0.64, bar_index=5, result="LOSS", profit_pips=-10.0),
+        ReplaySignal(timestamp=now, symbol="EURUSD", signal_type="SELL", entry=1.1, sl=1.11, tp=1.08, confidence="MEDIUM", score=0.62, bar_index=6, result="LOSS", profit_pips=-10.0),
+    ]
+
+    analysis = svc._compute_scoring_analysis(mock_trades)
+    assert analysis["has_data"] is True
+    assert analysis["total_trades"] == 6
+    assert analysis["avg_score_winners"] > analysis["avg_score_losers"]
+    assert analysis["score_edge_delta"] > 0
+    assert analysis["is_calibrated"] is True
+    assert len(analysis["buckets"]) == 5
+    
+    # Check Elite Bucket
+    elite = [b for b in analysis["buckets"] if b["tier"] == "ELITE"][0]
+    assert elite["trades_count"] == 1
+    assert elite["wins"] == 1
+    assert elite["win_rate_pct"] == 100.0
+
+    # Check Medium Bucket
+    medium = [b for b in analysis["buckets"] if b["tier"] == "MEDIUM"][0]
+    assert medium["trades_count"] == 2
+    assert medium["losses"] == 2
+    assert medium["win_rate_pct"] == 0.0
