@@ -116,7 +116,7 @@ class StrategyLabSignalEvaluator:
 
             df_ind = adapter.strategy.add_indicators(window.copy(), adapter.config)
             confirmations = self._scorer.create_standard_confirmations(sig_dict, df_ind, sym_key)
-            res = self._scorer.evaluate_signal(sym_key, True, confirmations, setup_quality=setup_quality)
+            res = self._scorer.evaluate_signal(sym_key, True, confirmations, setup_quality=setup_quality, strategy=strat_key)
             score = round(float(res.final_score), 4)
             confidence = res.confidence_level
             should_show = res.should_show
@@ -125,6 +125,17 @@ class StrategyLabSignalEvaluator:
             score = round(setup_quality, 4)
             confidence = "HIGH" if score >= 0.75 else "MEDIUM"
             should_show = True
+
+        # Filtrado por umbral mínimo específico de estrategia o señal
+        strat_cfg = getattr(adapter, 'config', {}) or {}
+        min_required_score = strat_cfg.get('min_score') or sig_dict.get('min_score')
+        if min_required_score is not None:
+            try:
+                min_req = float(min_required_score)
+                if score < min_req:
+                    should_show = False
+            except (ValueError, TypeError):
+                pass
 
         return EngineSignalResult(signal=sig_dict, should_show=should_show, confidence=confidence, score=score)
 
