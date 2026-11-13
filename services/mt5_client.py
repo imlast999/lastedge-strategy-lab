@@ -139,6 +139,8 @@ def get_candles(symbol: str, timeframe: Union[str, int], n: int = 20000) -> Opti
         if rates is not None and len(rates) > 0:
             df = pd.DataFrame(rates)
             df["time"] = pd.to_datetime(df["time"], unit="s", utc=True)
+            if "tick_volume" in df.columns and "volume" not in df.columns:
+                df["volume"] = df["tick_volume"]
             df.attrs["symbol"] = sym
             df["symbol"] = sym
             return df
