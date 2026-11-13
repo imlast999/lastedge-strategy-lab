@@ -106,9 +106,57 @@ This SHA-256 hash is recorded in `data/research.db` alongside the strategy code 
 
 ---
 
-## 6. Offline Execution & Broker Decoupling
+## 7. Canonical Benchmark Standard: 10,000 Bars
 
-When executing research via `run_pipeline.py`, `ReplayEngine`, `WalkForwardTester`, or `ExitResearchRunner`:
-1. The engine queries `DataLoader` for the local Parquet or CSV dataset.
-2. If found, all simulations run completely offline without opening network sockets or connecting to MetaTrader 5.
-3. If not found, MT5 is only queried as an optional live ingestor on Windows systems where MetaTrader 5 is installed.
+LastEdge Strategy Lab establishes **10,000 continuous H1 candles (~1.7 years of continuous market history)** as the **canonical institutional benchmark standard** across the entire public codebase.
+
+### Storage & System Requirements (10,000 Bars Standard):
+* **Dataset Footprint:** Thanks to columnar Apache Parquet compression (`snappy`), a 10,000-candle dataset occupies only **~300 KB – 500 KB per symbol** (~1.5 MB total for EURUSD, XAUUSD, and BTCEUR combined).
+* **Recommended Free Disk Space:** A minimum of **1.0 GB of free disk space** is recommended on the host system to comfortably store Parquet datasets, SQLite experiment registries (`research.db`), DuckDB analytical indexes, and full HTML/JSON backtest artifacts.
+
+---
+
+## 8. Scaling to Custom Horizons (e.g. 30,000+ Candles)
+
+The default values in the repository (`default_bars = 10000`) are intentionally preserved so that any user cloning the repository can run zero-configuration backtests on lightweight machines without excessive memory or disk pressure.
+
+Users with ample disk space and computational resources wishing to audit multi-year macroeconomic cycles (such as **30,000 H1 candles $\approx$ 3.5 to 5.0 years**) can scale the simulation horizon without modifying core files:
+
+### 1. Via Unified Research CLI (`run_pipeline.py`):
+```bash
+python run_pipeline.py --symbol EURUSD --strategy eurusd_flow --bars 30000
+```
+
+### 2. Via REST API (`POST /api/backtest/run`):
+```json
+{
+  "symbol": "XAUUSD",
+  "strategy": "xauusd_asian_london",
+  "timeframe": "H1",
+  "bars": 30000
+}
+```
+
+### 3. Via Python Service API (`services/backtest_service.py`):
+```python
+from services.backtest_service import get_backtest_service
+
+svc = get_backtest_service()
+report = svc.run_backtest(
+    symbol="BTCEUR",
+    strategy_name="btceur_trend_surge",
+    timeframe="H1",
+    bars=30000  # Default remains 10000
+)
+```
+
+### 4. Via Exit Research Runner (`core/exit_research/runner.py`):
+```python
+from core.exit_research.runner import ExitResearchRunner
+
+runner = ExitResearchRunner(
+    symbol="EURUSD",
+    levels=[5000, 10000, 20000, 30000]  # Custom bar levels
+)
+report = runner.run_all(bars=30000)
+```

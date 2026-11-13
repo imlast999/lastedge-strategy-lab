@@ -45,3 +45,11 @@ Defines default test costs and benchmark thresholds:
   }
 }
 ```
+
+---
+
+## 3. Backtest Simulation Horizon Standards (`bars`)
+
+* **Default Public Standard:** **`10,000 bars`** in H1 (~1.7 years of continuous historical market data).
+* **Storage Footprint:** Less than **1.5 MB** in Apache Parquet for all 3 primary symbols combined. Recommended disk headroom: **1.0 GB** for logs, database, and HTML artifacts.
+* **Custom Horizon Override:** The public repo default remains strictly pinned at 10,000 bars. Users with extended storage or compute can override this parameter directly via CLI (`--bars 30000`), REST API payload (`{"bars": 30000}`), or Python service calls (`run_backtest(..., bars=30000)`). See [DATA_PIPELINE.md](DATA_PIPELINE.md) for full examples.

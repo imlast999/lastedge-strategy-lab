@@ -38,6 +38,7 @@
 - **Monte Carlo Engine**: Statistical resimulation for maximum drawdown and risk-of-ruin probability at 95% and 99% confidence levels (`core/montecarlo.py`).
 - **Exit Research Framework**: Independent exit rule optimization (partial exits, ATR trailing, dynamic breakeven).
 - **Candidate Promotion Pipeline**: Automated candidate registration, configuration freezing, SHA-256 code hashing, and cryptographic packaging for `Trading Engine` (`services/promotion.py`).
+- **10,000-Candle Canonical Benchmark Standard**: Simulations default to 10,000 continuous H1 candles (~1.7 years) requiring < 1.5 MB of Parquet storage (1 GB recommended headroom). Scalable to 30,000+ bars on demand via CLI/API without altering core repository defaults.
 - **Vault Alpha Consolidation**: Multi-pillar audit suite verifying private proprietary strategies against 10,000-candle regimes, weeding out unviable setups to focus computational resources on institutional-grade alpha.
 - **Typed Signal Contract**: Canonical implementation of [`SignalIntent`](strategies/base.py) with bit-for-bit parity with Trading Engine.
 - **Research REST API**: Local HTTP server on port `8082` for research experiments and candidate listing.
