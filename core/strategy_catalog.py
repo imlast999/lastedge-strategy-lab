@@ -205,6 +205,15 @@ def discover_dynamic_strategies() -> None:
         pkg_dir / "experimental",
     ]
 
+    # Auto-discover pair subdirectories (e.g. strategies/EURUSD, strategies/XAUUSD, strategies/BTCEUR, strategies/<ANY_PAIR>)
+    try:
+        for child in pkg_dir.iterdir():
+            if child.is_dir() and not child.name.startswith((".", "_")):
+                if child not in search_dirs:
+                    search_dirs.append(child)
+    except Exception:
+        pass
+
     for sdir in search_dirs:
         if not sdir.exists() or not sdir.is_dir():
             continue
@@ -227,8 +236,8 @@ def discover_dynamic_strategies() -> None:
                 for attr in dir(mod):
                     cls = getattr(mod, attr)
                     if isinstance(cls, type) and issubclass(cls, BaseStrategy) and cls is not BaseStrategy:
-                        # Determine Symbol
-                        sym = "EURUSD"
+                        # Determine Symbol (defaults to pair folder name if inside a pair directory)
+                        sym = sdir.name.upper() if sdir != pkg_dir and sdir.name.lower() not in ("public", "vault", "private", "experimental") else "EURUSD"
                         if "xau" in strat_id or "gold" in strat_id:
                             sym = "XAUUSD"
                         elif "btc" in strat_id:

@@ -26,3 +26,14 @@ logs/
 strategies/vault/
 strategies/private/
 
+# Deny-by-default for pair strategies: ignore all strategy files inside pair subfolders
+strategies/*/*.py
+
+# Whitelist ONLY public benchmark demo strategies, inits, and documentation
+!strategies/*/*_public_*.py
+!strategies/EURUSD/eurusd_public_trend.py
+!strategies/XAUUSD/xauusd_public_breakout.py
+!strategies/BTCEUR/btceur_public_momentum.py
+!strategies/**/README.md
+!strategies/**/__init__.py
+!strategies/**/.gitkeep

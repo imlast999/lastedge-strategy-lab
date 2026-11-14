@@ -539,3 +539,156 @@ def register_vault_strategies(
 
     return registered_count
 
+
+def discover_pair_folder_strategies(strategies_dir: Optional[Union[str, Path]] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Escanea subcarpetas por par dentro del directorio de estrategias (e.g. strategies/EURUSD/, strategies/XAUUSD/,
+    strategies/BTCEUR/, strategies/<CUALQUIER_PAR>/) buscando implementaciones de BaseStrategy en archivos .py.
+
+    Retorna un diccionario indexado por nombre base del archivo o id de estrategia:
+    {
+        'eurusd_partial': {
+            'class': EURUSDPartialStrategy,
+            'symbol': 'EURUSD',
+            'version': '1.0',
+            'strategy_name': 'EURUSDPartialStrategy',
+            'code_path': Path(...),
+            'pair_folder': 'EURUSD',
+            'is_public': False
+        }
+    }
+    """
+    if strategies_dir is None:
+        strategies_dir = Path(__file__).parent.parent / "strategies"
+    else:
+        strategies_dir = Path(strategies_dir)
+
+    if not strategies_dir.exists() or not strategies_dir.is_dir():
+        logger.debug("[StrategyLoader] Strategies directory not found: %s", strategies_dir)
+        return {}
+
+    discovered: Dict[str, Dict[str, Any]] = {}
+    excluded_dirs = {"__pycache__", "vault", "public", "private", "experimental", "archive"}
+
+    for pair_dir in strategies_dir.iterdir():
+        if not pair_dir.is_dir():
+            continue
+        if pair_dir.name.startswith((".", "_")) or pair_dir.name.lower() in excluded_dirs:
+            continue
+
+        pair_symbol = pair_dir.name.upper()
+
+        for py_path in pair_dir.glob("*.py"):
+            if py_path.name.startswith(("_", ".")) or py_path.name in ("base.py", "setup.py", "conftest.py"):
+                continue
+            if py_path.stem.endswith("_test") or py_path.stem.startswith("test_"):
+                continue
+
+            module_name = f"strategies.{pair_symbol}.{py_path.stem}"
+            try:
+                spec = importlib.util.spec_from_file_location(module_name, py_path)
+                if spec is None or spec.loader is None:
+                    continue
+                mod = importlib.util.module_from_spec(spec)
+                mod.__package__ = f"strategies.{pair_symbol}"
+                spec.loader.exec_module(mod)
+            except Exception as e:
+                logger.debug("[StrategyLoader] Error loading pair strategy from %s/%s: %s", pair_symbol, py_path.name, e)
+                continue
+
+            for attr_name in dir(mod):
+                attr = getattr(mod, attr_name)
+                if isinstance(attr, type) and issubclass(attr, BaseStrategy) and attr is not BaseStrategy:
+                    strat_symbol = getattr(attr, "symbol", None)
+                    strat_name = getattr(attr, "strategy_name", attr.__name__)
+                    strat_ver = getattr(attr, "version", "1.0")
+
+                    if not strat_symbol:
+                        try:
+                            temp_inst = attr()
+                            strat_symbol = getattr(temp_inst, "symbol", None)
+                            if not strat_symbol and hasattr(temp_inst, "metadata"):
+                                strat_symbol = getattr(temp_inst.metadata, "symbol", None)
+                        except Exception:
+                            pass
+
+                    if not strat_symbol:
+                        strat_symbol = pair_symbol
+
+                    key = py_path.stem.lower()
+                    discovered[key] = {
+                        "class": attr,
+                        "symbol": str(strat_symbol).upper(),
+                        "version": str(strat_ver),
+                        "strategy_name": strat_name,
+                        "code_path": py_path,
+                        "pair_folder": pair_symbol,
+                        "is_public": "_public_" in py_path.stem.lower(),
+                    }
+                    logger.info(
+                        "[StrategyLoader] Discovered pair strategy '%s' for pair '%s' in %s/%s",
+                        attr.__name__,
+                        pair_symbol,
+                        pair_symbol,
+                        py_path.name
+                    )
+
+    return discovered
+
+
+def register_pair_folder_strategies(
+    target_registry: Optional[Dict[str, Any]] = None,
+    strategies_dir: Optional[Union[str, Path]] = None
+) -> int:
+    """
+    Descubre estrategias en las subcarpetas de pares (strategies/<PAIR>/)
+    y las registra en target_registry y en services.signals.STRATEGY_REGISTRY.
+    """
+    if target_registry is None:
+        import strategies
+        target_registry = strategies.STRATEGY_REGISTRY
+
+    discovered = discover_pair_folder_strategies(strategies_dir)
+    registered_count = 0
+
+    for base_key, info in discovered.items():
+        cls = info["class"]
+        symbol = info["symbol"]
+        strat_name = info["strategy_name"]
+
+        # 1. Registrar por clave base (ej: 'eurusd_partial', 'xauusd_asian_london')
+        target_registry[base_key] = cls
+        target_registry[base_key.upper()] = cls
+
+        # 2. Registrar por nombre de estrategia / clase
+        target_registry[strat_name.lower()] = cls
+        target_registry[strat_name] = cls
+
+        # 3. Registrar con prioridad sobre el símbolo si no es benchmark público
+        # o si el símbolo aún no tiene estrategia asignada
+        if symbol not in target_registry or not info.get("is_public", False):
+            target_registry[symbol] = cls
+            target_registry[symbol.lower()] = cls
+
+        # 4. Sincronizar con services.signals.STRATEGY_REGISTRY si existe
+        try:
+            import services.signals as _signals_svc
+            _signals_svc.register_strategy(base_key, cls)
+            _signals_svc.register_strategy(strat_name.lower(), cls)
+            if symbol.lower() not in _signals_svc.STRATEGY_REGISTRY or not info.get("is_public", False):
+                _signals_svc.register_strategy(symbol.lower(), cls)
+                _signals_svc.register_strategy(symbol.upper(), cls)
+        except Exception as _sig_err:
+            logger.debug("[StrategyLoader] Could not sync with services.signals: %s", _sig_err)
+
+        registered_count += 1
+        logger.info(
+            "[StrategyLoader] Activated pair strategy '%s' (%s) mapped to '%s'",
+            cls.__name__,
+            base_key,
+            symbol
+        )
+
+    return registered_count
+
+

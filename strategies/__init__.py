@@ -45,15 +45,19 @@ if BTCEURPublicMomentumStrategy is not None:
     STRATEGY_REGISTRY['BTCEUR'] = BTCEURPublicMomentumStrategy
     STRATEGY_REGISTRY['btceur_public_momentum'] = BTCEURPublicMomentumStrategy
 
-# ── 3. Dynamic ingestion of promoted packages and private vault strategies ──────
+# ── 3. Dynamic ingestion of promoted packages, pair folder strategies and private vault ──
 try:
     from services.strategy_loader import (
         register_promoted_strategies,
         register_vault_strategies,
-        register_public_strategies
+        register_public_strategies,
+        register_pair_folder_strategies
     )
     register_promoted_strategies(STRATEGY_REGISTRY)
     register_public_strategies(STRATEGY_REGISTRY)
+    pair_count = register_pair_folder_strategies(STRATEGY_REGISTRY)
+    if pair_count > 0:
+        logger.info("[StrategyLoader] %d strategies activated from pair folders in Strategy Lab.", pair_count)
     vault_count = register_vault_strategies(STRATEGY_REGISTRY)
     if vault_count > 0:
         logger.info("[StrategyVault] %d proprietary strategies activated in Strategy Lab.", vault_count)
