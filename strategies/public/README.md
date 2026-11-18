@@ -1,5 +1,7 @@
 # LastEdge Public Benchmark Strategies 🌐
 
+> **Example only — rejected by the project's validation suite, no edge claimed.**
+
 This directory contains the **public reference benchmark strategies** for LastEdge. They are designed with an open and educational architecture to allow any developer or quantitative trader cloning the repository to:
 
 1. **Verify the End-to-End Execution Pipeline**: Test historical data ingestion, indicator calculations, and signal generation across all 3 supported symbols (`EURUSD`, `XAUUSD`, `BTCEUR`).

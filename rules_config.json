@@ -14,7 +14,7 @@
       "eurusd_partial": {
         "min_score": 0.65,
         "show_threshold": 0.65,
-        "description": "EUR/USD Partial Close Momentum (10K Titular - PF 1.92, WR 53.4%, Sharpe 6.09)"
+        "description": "EUR/USD Partial Close Momentum (experimental, not validated)"
       },
       "eurusd_flow": {
         "min_score": 0.70,
@@ -29,8 +29,8 @@
       "overlap"
     ],
     "avoid_news": true,
-    "description": "eurusd_partial — partial_close validado (PF=1.92, WR=53.4%, Sharpe=6.09 a 30k velas)",
-    "philosophy": "Momentum + Tendencia + Partial Close validado",
+    "description": "eurusd_partial: experimental, not validated",
+    "philosophy": "Momentum + Tendencia + Partial Close (experimental, not validated)",
     "timeframes": [
       "H1"
     ],

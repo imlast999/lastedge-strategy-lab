@@ -1,6 +1,7 @@
 """
 BTCEUR Public Momentum Strategy - Baseline Open-Source Model
 ============================================================
+Example only — rejected by the project's validation suite, no edge claimed.
 Robust momentum and trend-continuation strategy for BTC/EUR on H1 timeframe.
 Designed as an educational and benchmark strategy for open-source users.
 

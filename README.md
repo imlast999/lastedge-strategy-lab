@@ -5,13 +5,11 @@
 # LastEdge Strategy Lab
 
 [![Strategy Lab CI](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/imlast999/lastedge-strategy-lab/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/Tests-54%2F54%20Passed-success)](https://github.com/imlast999/lastedge-strategy-lab)
 [![Pillars](https://img.shields.io/badge/Quantitative%20Pillars-6%20Active-purple)](https://github.com/imlast999/lastedge-strategy-lab)
 
 > **Repository:** [`imlast999/lastedge-strategy-lab`](https://github.com/imlast999/lastedge-strategy-lab)  
 > **Role:** Quantitative Research, Backtesting, Walk-Forward Analysis, Monte Carlo & Strategy Promotion  
-> **Status:** Production Ready  
-> **Tests:** 54 / 54 Passed (100% Green)  
+> **Status:** In development — no strategy has passed validation yet  
 
 </div>
 

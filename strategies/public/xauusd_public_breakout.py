@@ -1,6 +1,7 @@
 """
 XAUUSD Public Breakout Strategy - Baseline Open-Source Model
 ============================================================
+Example only — rejected by the project's validation suite, no edge claimed.
 Donchian channel breakout strategy with EMA trend filter for Gold (XAU/USD).
 Designed as an educational and benchmark strategy for open-source users.
 
